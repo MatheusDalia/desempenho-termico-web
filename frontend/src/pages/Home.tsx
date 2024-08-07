@@ -1,4 +1,12 @@
-// No topo do arquivo
-export {};
+import React from 'react';
+import FileUpload from '../components/FileUpload'; // Certifique-se de ajustar o caminho conforme necessário
 
-// Seu código existente...
+const Home: React.FC = () => {
+  return (
+    <div>
+      <FileUpload />
+    </div>
+  );
+};
+
+export default Home;
