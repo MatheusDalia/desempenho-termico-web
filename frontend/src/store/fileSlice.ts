@@ -1,3 +1,4 @@
+// src/store/fileSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface FileState {
@@ -6,7 +7,7 @@ interface FileState {
   additionalFile: File | null;
   interval: string;
   includeCargaTermica: boolean;
-  data: any[]; // Ajuste conforme os dados processados
+  data: any[];
 }
 
 const initialState: FileState = {

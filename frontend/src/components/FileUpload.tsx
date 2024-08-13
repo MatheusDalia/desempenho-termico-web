@@ -134,6 +134,29 @@ const FileUpload: React.FC = () => {
         )}
       </div>
 
+      <div style={{ margin: '20px' }}>
+        <label>
+          Intervalo:
+          <select value={interval} onChange={(e) => setInterval(e.target.value)}>
+            <option value="">Select Interval</option>
+            <option value="intervalo1">Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C</option>
+            <option value="intervalo2">Intervalo 2 - ToAPP &lt; 28,0 °C</option>
+            <option value="intervalo3">Intervalo 3 - ToAPP &lt; 30,0 °C</option>
+          </select>
+        </label>
+      </div>
+
+      <div style={{ margin: '20px' }}>
+        <label>
+          Inclui Carga Térmica:
+          <input
+            type="checkbox"
+            checked={includeCargaTermica}
+            onChange={() => setIncludeCargaTermica(!includeCargaTermica)}
+          />
+        </label>
+      </div>
+
       {includeCargaTermica && (
         <div
           {...getRootPropsCargaTermica()}
@@ -173,29 +196,6 @@ const FileUpload: React.FC = () => {
             window.location.href = '/api/download';
           }
         }}>Download Excel File</button>
-      </div>
-
-      <div style={{ margin: '20px' }}>
-        <label>
-          Intervalo:
-          <select value={interval} onChange={(e) => setInterval(e.target.value)}>
-            <option value="">Select Interval</option>
-            <option value="intervalo1">Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C</option>
-            <option value="intervalo2">Intervalo 2 - ToAPP &lt; 28,0 °C</option>
-            <option value="intervalo3">Intervalo 3 - ToAPP &lt; 30,0 °C</option>
-          </select>
-        </label>
-      </div>
-
-      <div style={{ margin: '20px' }}>
-        <label>
-          Inclui Carga Térmica:
-          <input
-            type="checkbox"
-            checked={includeCargaTermica}
-            onChange={() => setIncludeCargaTermica(!includeCargaTermica)}
-          />
-        </label>
       </div>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
