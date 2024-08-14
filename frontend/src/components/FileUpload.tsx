@@ -1,97 +1,70 @@
 import React, { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
-import { setFile, setComparisonFile } from '../store/fileSlice';
+import { setFile, setModelFile } from '../store/fileSlice';
 import { useDropzone } from 'react-dropzone';
-import axios from 'axios';
 import { FaFileExcel, FaFileCsv, FaTimes } from 'react-icons/fa';
 
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
-  const [interval, setInterval] = useState<string>('');
+  const [interval, setInterval] = useState<string>(''); // Declare state with initial value
   const [includeCargaTermica, setIncludeCargaTermica] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedVNFile, setSelectedVNFile] = useState<File | null>(null);
+  const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
 
-  const onDrop = useCallback(async (acceptedFiles: File[], type: 'vn' | 'csv') => {
+  const handleDrop = useCallback((acceptedFiles: File[], fileType: string) => {
     const file = acceptedFiles[0];
     if (file) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        const response = await axios.post('/api/upload', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-
-        console.log('Upload response:', response);
-
-        if (type === 'vn') {
-          setSelectedFile(file);
-          dispatch(setFile(file));
-        } else if (type === 'csv') {
-          setSelectedFile(file);
-          dispatch(setComparisonFile(file));
-        }
-        setError(null);
-      } catch (error: unknown) {
-        console.error('Error uploading file:', error);
-        let errorMessage = 'Error uploading file';
-        if (axios.isAxiosError(error)) {
-          errorMessage = error.response?.data?.message || errorMessage;
-        }
-        setError(errorMessage);
+      console.log(`File dropped: ${file.name}, Type: ${fileType}`);
+      if (fileType === 'csv') {
+        setSelectedVNFile(file);
+        dispatch(setFile(file));
+      } else if (fileType === 'xlsx') {
+        setSelectedModelFile(file);
+        dispatch(setModelFile(file));
       }
     }
   }, [dispatch]);
 
   const handleDropVN = useCallback((acceptedFiles: File[]) => {
+    console.log('VN Drop:', acceptedFiles);
     if (acceptedFiles.length > 0) {
-      onDrop(acceptedFiles, 'vn');
+      handleDrop(acceptedFiles, 'csv');
     }
-  }, [onDrop]);
+  }, [handleDrop]);
 
-  const handleDropCSV = useCallback((acceptedFiles: File[]) => {
+  const handleDropModel = useCallback((acceptedFiles: File[]) => {
+    console.log('Model Drop:', acceptedFiles);
     if (acceptedFiles.length > 0) {
-      onDrop(acceptedFiles, 'csv');
+      handleDrop(acceptedFiles, 'xlsx');
     }
-  }, [onDrop]);
+  }, [handleDrop]);
+
+  const handleDropCargaTermica = useCallback((acceptedFiles: File[]) => {
+    console.log('Carga Térmica Drop:', acceptedFiles);
+    if (acceptedFiles.length > 0) {
+      setAdditionalFile(acceptedFiles[0]);
+    }
+  }, []);
+
+  const { getRootProps: getRootPropsModel, getInputProps: getInputPropsModel } = useDropzone({
+    onDrop: handleDropModel,
+    accept: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+    },
+    multiple: false,
+  });
 
   const { getRootProps: getRootPropsVN, getInputProps: getInputPropsVN } = useDropzone({
     onDrop: handleDropVN,
     accept: {
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'text/csv': ['.csv'],
     },
     multiple: false,
   });
 
   const { getRootProps: getRootPropsCargaTermica, getInputProps: getInputPropsCargaTermica } = useDropzone({
-    onDrop: async (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        setAdditionalFile(acceptedFiles[0]);
-        const formData = new FormData();
-        formData.append('file', acceptedFiles[0]);
-        try {
-          const response = await axios.post('/api/upload-additional', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-          console.log('Additional file upload response:', response);
-          setError(null);
-        } catch (error: unknown) {
-          console.error('Error uploading additional file:', error);
-          let errorMessage = 'Error uploading additional file';
-          if (axios.isAxiosError(error)) {
-            errorMessage = error.response?.data?.message || errorMessage;
-          }
-          setError(errorMessage);
-        }
-      }
-    },
+    onDrop: handleDropCargaTermica,
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'text/csv': ['.csv'],
@@ -120,17 +93,48 @@ const FileUpload: React.FC = () => {
         }}
       >
         <input {...getInputPropsVN()} />
-        {selectedFile && selectedFile.name.includes('VN') ? (
+        {selectedVNFile ? (
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div style={{ fontSize: '48px', color: '#333' }}>
-              {selectedFile.type.includes('csv') ? <FaFileCsv /> : <FaFileExcel />}
+              {selectedVNFile.type.includes('csv') ? <FaFileCsv /> : <FaFileExcel />}
             </div>
-            <button onClick={() => setSelectedFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
+            <button onClick={() => setSelectedVNFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
               <FaTimes />
             </button>
           </div>
         ) : (
           <p>Drag & drop VN file here, or click to select one</p>
+        )}
+      </div>
+
+      <div
+        {...getRootPropsModel()}
+        style={{
+          border: '2px dashed #cccccc',
+          padding: '40px',
+          textAlign: 'center',
+          width: '300px',
+          height: '300px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#f9f9f9',
+          position: 'relative',
+          margin: '10px',
+        }}
+      >
+        <input {...getInputPropsModel()} />
+        {selectedModelFile ? (
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <div style={{ fontSize: '48px', color: '#333' }}>
+              {selectedModelFile.type.includes('xlsx') ? <FaFileExcel /> : <FaFileCsv />}
+            </div>
+            <button onClick={() => setSelectedModelFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
+              <FaTimes />
+            </button>
+          </div>
+        ) : (
+          <p>Drag & drop Model file here, or click to select one</p>
         )}
       </div>
 
@@ -178,7 +182,7 @@ const FileUpload: React.FC = () => {
           {additionalFile ? (
             <div style={{ position: 'relative', width: '100%', height: '100%' }}>
               <div style={{ fontSize: '48px', color: '#333' }}>
-                {additionalFile.type.includes('csv') ? <FaFileCsv /> : <FaFileExcel />}
+                {additionalFile.type.includes('xlsx') ? <FaFileExcel /> : <FaFileCsv />}
               </div>
               <button onClick={() => setAdditionalFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
                 <FaTimes />
@@ -189,16 +193,6 @@ const FileUpload: React.FC = () => {
           )}
         </div>
       )}
-
-      <div style={{ margin: '20px' }}>
-        <button onClick={() => {
-          if (selectedFile) {
-            window.location.href = '/api/download';
-          }
-        }}>Download Excel File</button>
-      </div>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 };
