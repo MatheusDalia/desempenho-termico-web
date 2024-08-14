@@ -3,14 +3,68 @@ import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
 import { useDropzone } from 'react-dropzone';
 import { FaFileExcel, FaFileCsv, FaTimes } from 'react-icons/fa';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
-  const [interval, setInterval] = useState<string>(''); // Declare state with initial value
+  const [interval, setInterval] = useState<string>('');
   const [includeCargaTermica, setIncludeCargaTermica] = useState<boolean>(false);
   const [selectedVNFile, setSelectedVNFile] = useState<File | null>(null);
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
+
+  // Functions for data processing
+  const filterData = (data: any[], roomType: string) => {
+    return data.filter(row => row['Tipo'] === roomType);
+  };
+
+  const getMaxTemperature = (data: any[]) => {
+    return Math.max(...data.map(row => row['Temperatura']));
+  };
+
+  const getMinTemperature = (data: any[]) => {
+    return Math.min(...data.map(row => row['Temperatura']));
+  };
+
+  const getNhftValue = (data: any[], threshold: number) => {
+    return data.filter(row => row['Temperatura'] < threshold).length;
+  };
+
+  // Process Excel files
+  const processExcelFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(worksheet);
+      console.log('Excel data:', json);
+
+      // Example usage of data processing functions
+      const filteredData = filterData(json, 'Sala');
+      console.log('Max Temperature:', getMaxTemperature(filteredData));
+      console.log('Min Temperature:', getMinTemperature(filteredData));
+      console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Process CSV files
+  const processCsvFile = (file: File) => {
+    Papa.parse(file, {
+      header: true,
+      complete: (results: Papa.ParseResult<any>) => {
+        console.log('CSV data:', results.data);
+
+        // Example usage of data processing functions
+        const filteredData = filterData(results.data, 'Sala');
+        console.log('Max Temperature:', getMaxTemperature(filteredData));
+        console.log('Min Temperature:', getMinTemperature(filteredData));
+        console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+      },
+    });
+  };
 
   const handleDrop = useCallback((acceptedFiles: File[], fileType: string) => {
     const file = acceptedFiles[0];
@@ -19,29 +73,28 @@ const FileUpload: React.FC = () => {
       if (fileType === 'csv') {
         setSelectedVNFile(file);
         dispatch(setFile(file));
+        processCsvFile(file);
       } else if (fileType === 'xlsx') {
         setSelectedModelFile(file);
         dispatch(setModelFile(file));
+        processExcelFile(file);
       }
     }
   }, [dispatch]);
 
   const handleDropVN = useCallback((acceptedFiles: File[]) => {
-    console.log('VN Drop:', acceptedFiles);
     if (acceptedFiles.length > 0) {
       handleDrop(acceptedFiles, 'csv');
     }
   }, [handleDrop]);
 
   const handleDropModel = useCallback((acceptedFiles: File[]) => {
-    console.log('Model Drop:', acceptedFiles);
     if (acceptedFiles.length > 0) {
       handleDrop(acceptedFiles, 'xlsx');
     }
   }, [handleDrop]);
 
   const handleDropCargaTermica = useCallback((acceptedFiles: File[]) => {
-    console.log('Carga Térmica Drop:', acceptedFiles);
     if (acceptedFiles.length > 0) {
       setAdditionalFile(acceptedFiles[0]);
     }
@@ -144,20 +197,8 @@ const FileUpload: React.FC = () => {
           <select value={interval} onChange={(e) => setInterval(e.target.value)}>
             <option value="">Select Interval</option>
             <option value="intervalo1">Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C</option>
-            <option value="intervalo2">Intervalo 2 - ToAPP &lt; 28,0 °C</option>
-            <option value="intervalo3">Intervalo 3 - ToAPP &lt; 30,0 °C</option>
+            <option value="intervalo2">Intervalo 2 - 26,0 °C &lt; ToAPPa &lt; 35,0 °C</option>
           </select>
-        </label>
-      </div>
-
-      <div style={{ margin: '20px' }}>
-        <label>
-          Inclui Carga Térmica:
-          <input
-            type="checkbox"
-            checked={includeCargaTermica}
-            onChange={() => setIncludeCargaTermica(!includeCargaTermica)}
-          />
         </label>
       </div>
 
