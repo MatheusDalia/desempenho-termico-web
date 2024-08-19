@@ -13,6 +13,7 @@ const FileUpload: React.FC = () => {
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
   const [outputFile, setOutputFile] = useState<Blob | null>(null);
+  const [selectedInterval, setSelectedInterval] = useState<string>('28');
 
   const filterData = (data: any[], roomType: string) => {
     roomType = roomType.toLowerCase();
@@ -35,18 +36,33 @@ const FileUpload: React.FC = () => {
     return cleanedData;
   };
 
-  const getMaxTemperature = (data: any[]) => {
-    const temperatures = data.map(row => parseFloat(row['Temperatura'])).filter(t => !isNaN(t));
-    return Math.max(...temperatures);
+  const getMaxTemperature = (data: any[], key: string) => {
+    const temperatures = data
+      .map(row => parseFloat(row[key]))
+      .filter(t => !isNaN(t));
+    return parseFloat(Math.max(...temperatures).toFixed(2));
   };
   
-  const getMinTemperature = (data: any[]) => {
-    const temperatures = data.map(row => parseFloat(row['Temperatura'])).filter(t => !isNaN(t));
-    return Math.min(...temperatures);
+  const getMinTemperature = (data: any[], key: string) => {
+    const temperatures = data
+      .map(row => parseFloat(row[key]))
+      .filter(t => !isNaN(t));
+    return parseFloat(Math.min(...temperatures).toFixed(2));
   };
-
-  const getNhftValue = (data: any[], threshold: number) => {
-    return data.filter(row => parseFloat(row['Temperatura']) < threshold).length;
+  
+  const getNhftValue = (data: any[], key: string, threshold: number) => {
+    const valueColumn = data.map(row => parseFloat(row[key])).filter(t => !isNaN(t));
+    
+    let count = 0;
+    if (threshold === 26) {
+      const subcount1 = valueColumn.filter(value => value < 26).length;
+      const subcount2 = valueColumn.filter(value => value < 18).length;
+      count = subcount1 - subcount2;
+    } else {
+      count = valueColumn.filter(value => value < 28).length;
+    }
+  
+    return count;
   };
 
   // Process Excel files
@@ -62,9 +78,6 @@ const FileUpload: React.FC = () => {
 
         // Example usage of data processing functions
         const filteredData = filterData(json, 'Sala');
-        console.log('Max Temperature:', getMaxTemperature(filteredData));
-        console.log('Min Temperature:', getMinTemperature(filteredData));
-        console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
       } catch (error) {
         console.error('Error processing Excel file:', error);
       }
@@ -82,9 +95,6 @@ const FileUpload: React.FC = () => {
 
           // Example usage of data processing functions
           const filteredData = filterData(results.data, 'Sala');
-          console.log('Max Temperature:', getMaxTemperature(filteredData));
-          console.log('Min Temperature:', getMinTemperature(filteredData));
-          console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
         } catch (error) {
           console.error('Error processing CSV file:', error);
         }
@@ -158,7 +168,7 @@ const FileUpload: React.FC = () => {
             error: (error) => reject(error),
           });
         });
-
+  
         const reader = new FileReader();
         reader.onload = (e) => {
           try {
@@ -166,16 +176,26 @@ const FileUpload: React.FC = () => {
             const workbook = XLSX.read(data, { type: 'array' });
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             const modelData: { [key: string]: any }[] = XLSX.utils.sheet_to_json(worksheet);
-
+  
             const outputData = modelData.map((modelRow) => {
-              const codigo = modelRow['Codigo'];
+              const codigo = modelRow['Código'];
               const tipoAmbiente = modelRow['Tipo de ambiente'];
+  
+              if (!codigo || !tipoAmbiente) {
+                console.warn('Skipping row due to missing Código or Tipo de ambiente:', modelRow);
+                return null;
+              }
+  
               const filteredData = filterData(vnData, tipoAmbiente);
-              console.log('Filtrado', codigo);
-              const minTemp = getMinTemperature(filteredData);
-              const maxTemp = getMaxTemperature(filteredData);
-              const nhftValue = getNhftValue(filteredData, 25);
-
+  
+              const minTemp = getMinTemperature(filteredData, `${codigo}:Zone Operative Temperature [C](Hourly)`);
+              const maxTemp = getMaxTemperature(filteredData, `${codigo}:Zone Operative Temperature [C](Hourly)`);
+              
+              // Ensure selectedInterval is a number
+              const numericSelectedInterval = parseFloat(selectedInterval as string);
+  
+              const nhftValue = getNhftValue(filteredData, `${codigo}:Zone Operative Temperature [C](Hourly)`, numericSelectedInterval);
+  
               let phftValue = 0;
               if (tipoAmbiente === "Quarto") {
                 phftValue = (nhftValue / 3650) * 100;
@@ -184,7 +204,7 @@ const FileUpload: React.FC = () => {
               } else {
                 phftValue = (nhftValue / 2920) * 100;
               }
-
+  
               return {
                 "Pavimento": modelRow['Pavimento'],
                 "Unidade": modelRow['Unidade'],
@@ -196,29 +216,34 @@ const FileUpload: React.FC = () => {
                 "NHFT": nhftValue,
                 "PHFT": phftValue,
               };
-            });
-
+            }).filter(row => row !== null);
+  
             const newWorksheet = XLSX.utils.json_to_sheet(outputData);
             const newWorkbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Output');
-
+  
             const output = XLSX.write(newWorkbook, { type: 'array' });
             setOutputFile(new Blob([output], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
           } catch (error) {
-            console.error('Error generating output file:', error);
+            console.error('Error processing model file:', error);
           }
         };
         reader.readAsArrayBuffer(selectedModelFile);
       } catch (error) {
         console.error('Error processing VN file:', error);
       }
+    } else {
+      console.warn('VN file or model file not selected.');
     }
   };
+  
 
 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      {/* Title */}
+    <h1 style={{ marginBottom: '20px' }}>Análise Térmica</h1>
       <div {...getRootPropsVN()} style={{ border: '2px dashed #ccc', padding: '20px', textAlign: 'center', width: '300px' }}>
         <input {...getInputPropsVN()} />
         {selectedVNFile ? (
@@ -241,6 +266,29 @@ const FileUpload: React.FC = () => {
         ) : (
           <p>Drag & drop a Model Excel file here, or click to select</p>
         )}
+      </div>
+
+
+        <div style={{ marginTop: '20px' }}>
+          <label>
+            Interval:
+            <select value={selectedInterval} onChange={(e) => setSelectedInterval(e.target.value)}>
+            <option value="26">Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C</option>
+            <option value="32">Intervalo 2 - ToAPP &lt; 32,0 °C</option>
+            <option value="38">Intervalo 3 - ToAPP &lt; 38,0 °C</option>
+            </select>
+          </label>
+        </div>
+
+        <div style={{ marginTop: '20px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={includeCargaTermica}
+            onChange={() => setIncludeCargaTermica(!includeCargaTermica)}
+          />
+          Include Carga Térmica
+        </label>
       </div>
 
       {includeCargaTermica && (
