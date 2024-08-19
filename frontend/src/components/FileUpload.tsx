@@ -8,44 +8,66 @@ import Papa from 'papaparse';
 
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
-  const [interval, setInterval] = useState<string>('');
   const [includeCargaTermica, setIncludeCargaTermica] = useState<boolean>(false);
   const [selectedVNFile, setSelectedVNFile] = useState<File | null>(null);
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
+  const [outputFile, setOutputFile] = useState<Blob | null>(null);
 
-  // Functions for data processing
   const filterData = (data: any[], roomType: string) => {
-    return data.filter(row => row['Tipo'] === roomType);
+    roomType = roomType.toLowerCase();
+    const cleanedData = data.map(row => {
+      const cleanedRow: { [key: string]: any } = {};
+      for (let key in row) {
+        cleanedRow[key.trim()] = row[key];
+      }
+      return cleanedRow;
+    });
+  
+    if (roomType === "quarto") {
+      return cleanedData.filter(row => parseFloat(row['SCH_OCUP_DORM:Schedule Value [](Hourly)']) === 1);
+    } else if (roomType === "sala") {
+      return cleanedData.filter(row => parseFloat(row['SCH_OCUP_SALA:Schedule Value [](Hourly)']) !== 0);
+    } else if (roomType === "misto") {
+      return cleanedData.filter(row => parseFloat(row['SCH_OCUP_MISTO:Schedule Value [](Hourly)']) !== 0);
+    }
+  
+    return cleanedData;
   };
 
   const getMaxTemperature = (data: any[]) => {
-    return Math.max(...data.map(row => row['Temperatura']));
+    const temperatures = data.map(row => parseFloat(row['Temperatura'])).filter(t => !isNaN(t));
+    return Math.max(...temperatures);
   };
-
+  
   const getMinTemperature = (data: any[]) => {
-    return Math.min(...data.map(row => row['Temperatura']));
+    const temperatures = data.map(row => parseFloat(row['Temperatura'])).filter(t => !isNaN(t));
+    return Math.min(...temperatures);
   };
 
   const getNhftValue = (data: any[], threshold: number) => {
-    return data.filter(row => row['Temperatura'] < threshold).length;
+    return data.filter(row => parseFloat(row['Temperatura']) < threshold).length;
   };
 
   // Process Excel files
   const processExcelFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(worksheet);
-      console.log('Excel data:', json);
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        console.log('Excel data:', json);
 
-      // Example usage of data processing functions
-      const filteredData = filterData(json, 'Sala');
-      console.log('Max Temperature:', getMaxTemperature(filteredData));
-      console.log('Min Temperature:', getMinTemperature(filteredData));
-      console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+        // Example usage of data processing functions
+        const filteredData = filterData(json, 'Sala');
+        console.log('Max Temperature:', getMaxTemperature(filteredData));
+        console.log('Min Temperature:', getMinTemperature(filteredData));
+        console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+      } catch (error) {
+        console.error('Error processing Excel file:', error);
+      }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -55,13 +77,17 @@ const FileUpload: React.FC = () => {
     Papa.parse(file, {
       header: true,
       complete: (results: Papa.ParseResult<any>) => {
-        console.log('CSV data:', results.data);
+        try {
+          console.log('CSV data:', results.data);
 
-        // Example usage of data processing functions
-        const filteredData = filterData(results.data, 'Sala');
-        console.log('Max Temperature:', getMaxTemperature(filteredData));
-        console.log('Min Temperature:', getMinTemperature(filteredData));
-        console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+          // Example usage of data processing functions
+          const filteredData = filterData(results.data, 'Sala');
+          console.log('Max Temperature:', getMaxTemperature(filteredData));
+          console.log('Min Temperature:', getMinTemperature(filteredData));
+          console.log('NHFT Value (Threshold 25°C):', getNhftValue(filteredData, 25));
+        } catch (error) {
+          console.error('Error processing CSV file:', error);
+        }
       },
     });
   };
@@ -105,7 +131,6 @@ const FileUpload: React.FC = () => {
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
-    multiple: false,
   });
 
   const { getRootProps: getRootPropsVN, getInputProps: getInputPropsVN } = useDropzone({
@@ -113,7 +138,6 @@ const FileUpload: React.FC = () => {
     accept: {
       'text/csv': ['.csv'],
     },
-    multiple: false,
   });
 
   const { getRootProps: getRootPropsCargaTermica, getInputProps: getInputPropsCargaTermica } = useDropzone({
@@ -122,117 +146,132 @@ const FileUpload: React.FC = () => {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'text/csv': ['.csv'],
     },
-    multiple: false,
   });
+
+  const generateOutputFile = async () => {
+    if (selectedVNFile && selectedModelFile) {
+      try {
+        const vnData = await new Promise<any[]>((resolve, reject) => {
+          Papa.parse(selectedVNFile, {
+            header: true,
+            complete: (results: Papa.ParseResult<any>) => resolve(results.data),
+            error: (error) => reject(error),
+          });
+        });
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const modelData: { [key: string]: any }[] = XLSX.utils.sheet_to_json(worksheet);
+
+            const outputData = modelData.map((modelRow) => {
+              const codigo = modelRow['Codigo'];
+              const tipoAmbiente = modelRow['Tipo de ambiente'];
+              const filteredData = filterData(vnData, tipoAmbiente);
+              console.log('Filtrado', codigo);
+              const minTemp = getMinTemperature(filteredData);
+              const maxTemp = getMaxTemperature(filteredData);
+              const nhftValue = getNhftValue(filteredData, 25);
+
+              let phftValue = 0;
+              if (tipoAmbiente === "Quarto") {
+                phftValue = (nhftValue / 3650) * 100;
+              } else if (tipoAmbiente === "Misto") {
+                phftValue = (nhftValue / 6570) * 100;
+              } else {
+                phftValue = (nhftValue / 2920) * 100;
+              }
+
+              return {
+                "Pavimento": modelRow['Pavimento'],
+                "Unidade": modelRow['Unidade'],
+                "Código": codigo,
+                "Nome": modelRow['Nome'],
+                "Tipo de ambiente": tipoAmbiente,
+                "MIN TEMP": minTemp,
+                "MAX TEMP": maxTemp,
+                "NHFT": nhftValue,
+                "PHFT": phftValue,
+              };
+            });
+
+            const newWorksheet = XLSX.utils.json_to_sheet(outputData);
+            const newWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Output');
+
+            const output = XLSX.write(newWorkbook, { type: 'array' });
+            setOutputFile(new Blob([output], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+          } catch (error) {
+            console.error('Error generating output file:', error);
+          }
+        };
+        reader.readAsArrayBuffer(selectedModelFile);
+      } catch (error) {
+        console.error('Error processing VN file:', error);
+      }
+    }
+  };
+
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-      <h1 style={{ marginBottom: '20px', color: '#333' }}>Análise Térmica</h1>
-
-      <div
-        {...getRootPropsVN()}
-        style={{
-          border: '2px dashed #cccccc',
-          padding: '40px',
-          textAlign: 'center',
-          width: '300px',
-          height: '300px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#f9f9f9',
-          position: 'relative',
-          margin: '10px',
-        }}
-      >
+      <div {...getRootPropsVN()} style={{ border: '2px dashed #ccc', padding: '20px', textAlign: 'center', width: '300px' }}>
         <input {...getInputPropsVN()} />
         {selectedVNFile ? (
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <div style={{ fontSize: '48px', color: '#333' }}>
-              {selectedVNFile.type.includes('csv') ? <FaFileCsv /> : <FaFileExcel />}
-            </div>
-            <button onClick={() => setSelectedVNFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
-              <FaTimes />
-            </button>
+          <div>
+            <FaFileCsv size={48} />
+            <p>{selectedVNFile.name}</p>
           </div>
         ) : (
-          <p>Drag & drop VN file here, or click to select one</p>
+          <p>Drag & drop a VN CSV file here, or click to select</p>
         )}
       </div>
 
-      <div
-        {...getRootPropsModel()}
-        style={{
-          border: '2px dashed #cccccc',
-          padding: '40px',
-          textAlign: 'center',
-          width: '300px',
-          height: '300px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#f9f9f9',
-          position: 'relative',
-          margin: '10px',
-        }}
-      >
+      <div {...getRootPropsModel()} style={{ border: '2px dashed #ccc', padding: '20px', textAlign: 'center', width: '300px', marginTop: '20px' }}>
         <input {...getInputPropsModel()} />
         {selectedModelFile ? (
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <div style={{ fontSize: '48px', color: '#333' }}>
-              {selectedModelFile.type.includes('xlsx') ? <FaFileExcel /> : <FaFileCsv />}
-            </div>
-            <button onClick={() => setSelectedModelFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
-              <FaTimes />
-            </button>
+          <div>
+            <FaFileExcel size={48} />
+            <p>{selectedModelFile.name}</p>
           </div>
         ) : (
-          <p>Drag & drop Model file here, or click to select one</p>
+          <p>Drag & drop a Model Excel file here, or click to select</p>
         )}
-      </div>
-
-      <div style={{ margin: '20px' }}>
-        <label>
-          Intervalo:
-          <select value={interval} onChange={(e) => setInterval(e.target.value)}>
-            <option value="">Select Interval</option>
-            <option value="intervalo1">Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C</option>
-            <option value="intervalo2">Intervalo 2 - 26,0 °C &lt; ToAPPa &lt; 35,0 °C</option>
-          </select>
-        </label>
       </div>
 
       {includeCargaTermica && (
-        <div
-          {...getRootPropsCargaTermica()}
-          style={{
-            border: '2px dashed #cccccc',
-            padding: '40px',
-            textAlign: 'center',
-            width: '300px',
-            height: '300px',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: '#f9f9f9',
-            position: 'relative',
-            margin: '10px',
-          }}
-        >
+        <div {...getRootPropsCargaTermica()} style={{ border: '2px dashed #ccc', padding: '20px', textAlign: 'center', width: '300px', marginTop: '20px' }}>
           <input {...getInputPropsCargaTermica()} />
           {additionalFile ? (
-            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-              <div style={{ fontSize: '48px', color: '#333' }}>
-                {additionalFile.type.includes('xlsx') ? <FaFileExcel /> : <FaFileCsv />}
-              </div>
-              <button onClick={() => setAdditionalFile(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '24px', color: '#333' }}>
-                <FaTimes />
-              </button>
+            <div>
+              <FaFileExcel size={48} />
+              <p>{additionalFile.name}</p>
             </div>
           ) : (
-            <p>Drag & drop Carga Térmica file here, or click to select one</p>
+            <p>Drag & drop a Carga Térmica file here, or click to select</p>
           )}
         </div>
+      )}
+
+      <button
+        onClick={generateOutputFile}
+        disabled={!selectedVNFile || !selectedModelFile}
+        style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#4CAF50', color: '#fff', border: 'none', cursor: 'pointer' }}
+      >
+        Generate and Download Output File
+      </button>
+      {outputFile && (
+        <a
+          href={URL.createObjectURL(outputFile)}
+          download="output.xlsx"
+          style={{ marginTop: '10px', textDecoration: 'none', color: '#007bff' }}
+        >
+          Download Generated File
+        </a>
       )}
     </div>
   );
