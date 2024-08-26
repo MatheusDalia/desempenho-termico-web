@@ -7,7 +7,6 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import './FileUpload.css';
 
-
 // Types
 interface FileUploadProps {
   includeCargaTermica: boolean;
@@ -24,7 +23,8 @@ const FileUpload: React.FC = () => {
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
   const [outputFile, setOutputFile] = useState<Blob | null>(null);
   const [selectedInterval, setSelectedInterval] = useState<string>('28');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false
+  
 
   const filterData = (data: any[], roomType: string) => {
     roomType = roomType.toLowerCase();
@@ -76,59 +76,131 @@ const FileUpload: React.FC = () => {
     return count;
   };
 
+  interface FilteredData {
+    [key: string]: number[];
+  }
+
+  interface CargaTermInput {
+    cargaFilteredData: any;
+    filteredData: any;
+    codigo: string;
+    codigoSolo: string;
+    thresholdVar: any;
+  }
+
   // Alterar o parâmetro threshold para ser um número em vez de um booleano.
-const cargaTerm = (
-  cargaFiltered: any[],
-  filteredData: any[],
-  codigo: string,
-  codigoSolo: string,
-  threshold: number
-): number | false => {
-  // Rename the columns in filteredData if there are duplicates
-  const filteredDataWithSuffix = filteredData.map(row => {
-    const newRow: { [key: string]: any } = {};
-    Object.keys(row).forEach(key => {
-      newRow[`${key}_filtered`] = row[key];
+  function cargaTerm({
+    cargaFilteredData,
+    filteredData,
+    codigo,
+    codigoSolo,
+    thresholdVar
+  }: CargaTermInput): number | number {
+    // Rename the columns in filteredData if there are duplicates
+    const filteredDataRenamed = filteredData.map((row: { [x: string]: any; }) => {
+        const renamedRow: { [key: string]: any } = {};
+        for (const key in row) {
+            renamedRow[`${key}_filtered`] = row[key];
+        }
+        return renamedRow;
     });
-    return newRow;
-  });
 
-  // Combine cargaFiltered with filteredData
-  const cargaFilteredWithAdditionalData = cargaFiltered.map(row => {
-    const additionalDataRow = filteredDataWithSuffix.find(filteredRow =>
-      filteredRow[`${codigoSolo}_filtered`]
-    );
-    return { ...row, ...additionalDataRow };
-  });
+    console.log('Filtered Data Renamed:', filteredDataRenamed);
 
-  // Determine the temperature column
-  const temperatureColumn = cargaFilteredWithAdditionalData.map(row =>
-    row[`${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`]
-  );
+    // Add the columns of filteredData to cargaFilteredData
+    cargaFilteredData = cargaFilteredData.map((row: any, index: number) => {
+        return { ...row, ...filteredDataRenamed[index] };
+    });
 
-  // Filter rows where temperature is above the threshold
-  let filteredRows = cargaFilteredWithAdditionalData.filter(row => {
-    const temp = row[`${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`];
-    if (threshold === 26) {
-      return temp < 18 || temp > 26;
+    console.log('Updated Carga Filtered Data:', cargaFilteredData);
+
+    const columnTitles = Object.keys(cargaFilteredData[0]);
+    console.log('Column Titles:', columnTitles);
+
+    const tempThreshold = parseFloat(thresholdVar);
+    const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
+
+    console.log('Temperature Column Key:', temperatureColumnKey);
+    console.log('Temp Threshold:', tempThreshold);
+
+    // Filter rows based on the temperature threshold
+    let filteredRows;
+    if (tempThreshold === 26) {
+        const filteredRows1 = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] < 18);
+        const filteredRows2 = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] > 26);
+        filteredRows = [...filteredRows1, ...filteredRows2];
     } else {
-      return temp > threshold;
+        filteredRows = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] > tempThreshold);
     }
-  });
 
-  // Calculate the sum of the values in the codigo column
-  const codigoColumnValues = filteredRows.map(row => row[codigo] || 0);
-  const totalSum = codigoColumnValues.reduce((acc, val) => acc + val, 0);
+    console.log('Filtered Rows:', filteredRows);
 
-  // Calculate additional carga if the column exists
-  const additionalColumnKey = `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Heating Energy [J](Hourly)_filtered`;
-  const cargaResfr = filteredRows
-    .map(row => row[additionalColumnKey] || 0)
-    .reduce((acc, val) => acc + val, 0);
+    if (columnTitles.includes(codigo)) {
+        // Calculate the sum of the values in the codigo column
+        const totalSum = filteredRows.reduce((sum: number, row: { [x: string]: any; }) => {
+            const value = parseFloat(row[codigo]);
+            return sum + (isNaN(value) ? 0 : value);
+        }, 0);
 
-  const totalConverted = (totalSum + cargaResfr) / 3600000;
-  return totalConverted;
+        console.log('Total Sum of Codigo Column:', totalSum);
+
+        const additionalColumnKey = `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Heating Energy [J](Hourly)`;
+        if (columnTitles.includes(additionalColumnKey)) {
+            // Get the additional column values
+            const cargaResfrValue = filteredRows.reduce((sum: number, row: { [x: string]: any; }) => {
+                const value = parseFloat(row[additionalColumnKey]);
+                return sum + (isNaN(value) ? 0 : value);
+            }, 0);
+
+            console.log('Carga Resfr Value:', cargaResfrValue);
+
+            const finalSum = totalSum + cargaResfrValue;
+            const totalConverted = finalSum / 3600000;
+            console.log('Final Sum:', finalSum);
+            console.log('Total Converted:', totalConverted);
+            return totalConverted;
+        }
+
+        const totalConverted = totalSum / 3600000;
+        console.log('Total Converted (No Carga Resfr):', totalConverted);
+        return totalConverted;
+    } else {
+        console.log('Codigo not found in column titles.');
+        return 0;
+    }
+}
+
+const calculateCargaResfr = (cargaFilteredData: any[], codigoSolo: string, thresholdVar: number) => {
+  const columnTitles = Object.keys(cargaFilteredData[0]);
+  const tempThreshold = parseFloat(thresholdVar.toString());
+  const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
+
+  let filteredRows;
+  if (tempThreshold === 26) {
+    const filteredRows1 = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] < 18);
+    const filteredRows2 = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] > 26);
+    filteredRows = [...filteredRows1, ...filteredRows2];
+  } else {
+    filteredRows = cargaFilteredData.filter((row: { [x: string]: number; }) => row[temperatureColumnKey] > tempThreshold);
+  }
+
+  if (columnTitles.includes(`${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`)) {
+    const cargaResfrValue = filteredRows.reduce((sum: number, row: { [x: string]: any; }) => {
+      const value = parseFloat(row[`${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`]);
+      return sum + (isNaN(value) ? 0 : value);
+    }, 0);
+
+    return cargaResfrValue / 3600000; // Convert to desired units (if necessary)
+  } else {
+    console.log('Column for Carga Resfr not found.');
+    return 0;
+  }
 };
+
+
+
+
+
 
   // Process Excel files
   const processExcelFile = (file: File) => {
@@ -289,7 +361,7 @@ const cargaTerm = (
               }
   
               let carga = 0;
-              let cargaResfr = 0;
+              let cargaResfrValue = 0;
   
               if (includeCargaTermica && additionalFile) {
                 try {
@@ -300,19 +372,24 @@ const cargaTerm = (
                       error: (error: any) => reject(error),
                     });
                   });
+
+                  
+                  const cargaFilteredData = filterData(cargaData, tipoAmbiente);
+
+                  console.log("Codigo Solo ta aqui?", codigo);
     
-                  const cargaTermicaResult = cargaTerm(
-                    cargaData,
+                  const cargaTermicaResult = cargaTerm({
+                    cargaFilteredData,
                     filteredData,
-                    `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
-                    codigo,
-                    26
-                  );
-    
-                  if (cargaTermicaResult !== false) {
-                    carga = cargaTermicaResult;
-                    console.log("carga: " + carga);
-                  }
+                    codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
+                    codigoSolo: codigo,
+                    thresholdVar: 26
+                });
+                cargaResfrValue = calculateCargaResfr(cargaFilteredData, codigo, 26);
+                carga = cargaTermicaResult;
+                
+                
+                  
                 } catch (error) {
                   console.error('Erro ao processar arquivo de Carga Térmica:', error);
                 }
@@ -328,13 +405,46 @@ const cargaTerm = (
                 "MAX TEMP": maxTemp,
                 "NHFT": nhftValue,
                 "PHFT": phftValue,
-                "CARGA RESF": includeCargaTermica ? cargaResfr / 3600000 : undefined,
-                "CARGA AQUE": includeCargaTermica ? cargaResfr / 3600000 : undefined,
+                "CARGA RESF": includeCargaTermica ? carga - cargaResfrValue: undefined,
+                "CARGA AQUE": includeCargaTermica ? cargaResfrValue : undefined,
                 "CARGA TERM": includeCargaTermica ? carga : undefined,
               };
             }));
   
             const newWorksheet = XLSX.utils.json_to_sheet(outputData);
+            // Define styles for column headers
+          const headerStyle = {
+            fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
+            font: { bold: true, color: { rgb: "000000" } }, // Black text
+            alignment: { horizontal: "center" }, // Centered text
+            border: {
+              top: { style: "thin", color: { rgb: "000000" } },
+              bottom: { style: "thin", color: { rgb: "000000" } },
+              left: { style: "thin", color: { rgb: "000000" } },
+              right: { style: "thin", color: { rgb: "000000" } }
+            }
+          };
+
+         // Ensure '!ref' is defined before using it
+         const rangeRef = newWorksheet['!ref'];
+         if (rangeRef) {
+           const range = XLSX.utils.decode_range(rangeRef);
+
+           // Apply styles to the first row (column headers)
+           const headerStyle = {
+             fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
+             font: { bold: true, color: { rgb: "000000" } }, // Black text
+             alignment: { horizontal: "center" },
+           };
+
+           for (let col = range.s.c; col <= range.e.c; col++) {
+             const cell_address = { c: col, r: 0 }; // First row
+             const cell_ref = XLSX.utils.encode_cell(cell_address);
+             if (newWorksheet[cell_ref]) {
+               newWorksheet[cell_ref].s = headerStyle;
+             }
+           }
+         }
             const newWorkbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Output');
   
@@ -521,6 +631,7 @@ const cargaTerm = (
           </a>
         
       )}
+      {isLoading && <div className="spinner"></div>}
     </div>
   );
 };
