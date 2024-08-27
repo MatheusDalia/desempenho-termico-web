@@ -326,7 +326,7 @@ const calculateCargaResfr = (cargaFilteredData: any[], codigoSolo: string, thres
             error: (error: any) => reject(error),
           });
         });
-    
+  
         // Process Model Excel file
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -372,29 +372,24 @@ const calculateCargaResfr = (cargaFilteredData: any[], codigoSolo: string, thres
                       error: (error: any) => reject(error),
                     });
                   });
-
-                  
+  
                   const cargaFilteredData = filterData(cargaData, tipoAmbiente);
-
-                  console.log("Codigo Solo ta aqui?", codigo);
-    
+  
                   const cargaTermicaResult = cargaTerm({
                     cargaFilteredData,
                     filteredData,
                     codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
                     codigoSolo: codigo,
                     thresholdVar: 26
-                });
-                cargaResfrValue = calculateCargaResfr(cargaFilteredData, codigo, 26);
-                carga = cargaTermicaResult;
-                
-                
-                  
+                  });
+                  cargaResfrValue = calculateCargaResfr(cargaFilteredData, codigo, 26);
+                  carga = cargaTermicaResult;
+  
                 } catch (error) {
                   console.error('Erro ao processar arquivo de Carga Térmica:', error);
                 }
               }
-              console.log("baron");
+  
               return {
                 "Pavimento": modelRow['Pavimento'],
                 "Unidade": modelRow['Unidade'],
@@ -405,50 +400,65 @@ const calculateCargaResfr = (cargaFilteredData: any[], codigoSolo: string, thres
                 "MAX TEMP": maxTemp,
                 "NHFT": nhftValue,
                 "PHFT": phftValue,
-                "CARGA RESF": includeCargaTermica ? carga - cargaResfrValue: undefined,
+                "CARGA RESF": includeCargaTermica ? carga - cargaResfrValue : undefined,
                 "CARGA AQUE": includeCargaTermica ? cargaResfrValue : undefined,
                 "CARGA TERM": includeCargaTermica ? carga : undefined,
               };
             }));
   
-            const newWorksheet = XLSX.utils.json_to_sheet(outputData);
-            // Define styles for column headers
-          const headerStyle = {
-            fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
-            font: { bold: true, color: { rgb: "000000" } }, // Black text
-            alignment: { horizontal: "center" }, // Centered text
-            border: {
-              top: { style: "thin", color: { rgb: "000000" } },
-              bottom: { style: "thin", color: { rgb: "000000" } },
-              left: { style: "thin", color: { rgb: "000000" } },
-              right: { style: "thin", color: { rgb: "000000" } }
-            }
-          };
-
-         // Ensure '!ref' is defined before using it
-         const rangeRef = newWorksheet['!ref'];
-         if (rangeRef) {
-           const range = XLSX.utils.decode_range(rangeRef);
-
-           // Apply styles to the first row (column headers)
-           const headerStyle = {
-             fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
-             font: { bold: true, color: { rgb: "000000" } }, // Black text
-             alignment: { horizontal: "center" },
-           };
-
-           for (let col = range.s.c; col <= range.e.c; col++) {
-             const cell_address = { c: col, r: 0 }; // First row
-             const cell_ref = XLSX.utils.encode_cell(cell_address);
-             if (newWorksheet[cell_ref]) {
-               newWorksheet[cell_ref].s = headerStyle;
-             }
-           }
-         }
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Output');
+            // Remove null entries
+            const cleanOutputData = outputData.filter((row) => row !== null);
   
+            // Create the summary data
+            const summaryData: any[] = [];
+            const summaryMap: { [key: string]: any } = {};
+  
+            cleanOutputData.forEach((row) => {
+              const key = `${row.Pavimento}_${row.Unidade}`;
+              if (!summaryMap[key]) {
+                summaryMap[key] = {
+                  Pavimento: row.Pavimento,
+                  Unidade: row.Unidade,
+                  MinTemp: row["MIN TEMP"],
+                  MaxTemp: row["MAX TEMP"],
+                  PHFT_Sum: row.PHFT || 0,
+                  CargaTermica_Sum: row["CARGA TERM"] || 0,
+                  Count: 1,
+                };
+              } else {
+                summaryMap[key].MinTemp = Math.min(summaryMap[key].MinTemp, row["MIN TEMP"]);
+                summaryMap[key].MaxTemp = Math.max(summaryMap[key].MaxTemp, row["MAX TEMP"]);
+                summaryMap[key].PHFT_Sum += row.PHFT || 0;
+                summaryMap[key].CargaTermica_Sum += row["CARGA TERM"] || 0;
+                summaryMap[key].Count += 1;
+              }
+            });
+  
+            for (const key in summaryMap) {
+              const entry = summaryMap[key];
+              summaryData.push({
+                Pavimento: entry.Pavimento,
+                Unidade: entry.Unidade,
+                MinTemp: entry.MinTemp,
+                MaxTemp: entry.MaxTemp,
+                PHFT_Avg: entry.PHFT_Sum / entry.Count,
+                CargaTermica_Sum: entry.CargaTermica_Sum,
+              });
+            }
+  
+            // Create worksheets for both the output data and summary
+            const outputWorksheet = XLSX.utils.json_to_sheet(cleanOutputData);
+            const summaryWorksheet = XLSX.utils.json_to_sheet(summaryData);
+  
+            // Create a new workbook and append both sheets
+            const newWorkbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(newWorkbook, outputWorksheet, 'Output');
+            XLSX.utils.book_append_sheet(newWorkbook, summaryWorksheet, 'Summary');
+  
+            // Write the workbook to an array
             const output = XLSX.write(newWorkbook, { type: 'array' });
+  
+            // Set the generated file to the outputFile state
             setOutputFile(new Blob([output], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
           } catch (error) {
             console.error('Error processing model file:', error);
@@ -464,6 +474,7 @@ const calculateCargaResfr = (cargaFilteredData: any[], codigoSolo: string, thres
       console.warn('VN file or model file not selected.');
     }
   };
+  
   
 
 
