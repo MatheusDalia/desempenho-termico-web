@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
 import { useDropzone } from 'react-dropzone';
@@ -6,14 +6,6 @@ import { FaFileExcel, FaFileCsv, FaTimes } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import './FileUpload.css';
-
-// Types
-interface FileUploadProps {
-  includeCargaTermica: boolean;
-  setIncludeCargaTermica: React.Dispatch<React.SetStateAction<boolean>>;
-  setCargaTermicaFile: React.Dispatch<React.SetStateAction<File | null>>;
-  onFileDrop: (file: File) => void;
-}
 
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
@@ -86,10 +78,6 @@ const FileUpload: React.FC = () => {
 
     return count;
   };
-
-  interface FilteredData {
-    [key: string]: number[];
-  }
 
   interface CargaTermInput {
     cargaFilteredData: any;
@@ -501,8 +489,6 @@ const FileUpload: React.FC = () => {
               }),
             );
 
-            
-
             // Remove null entries
             const cleanOutputData = outputData.filter((row) => row !== null);
 
@@ -511,7 +497,8 @@ const FileUpload: React.FC = () => {
             const summaryMap: { [key: string]: any } = {};
 
             cleanOutputData.forEach((row) => {
-              if (row) { // Verifica se row não é null
+              if (row) {
+                // Verifica se row não é null
                 const key = `${row.Pavimento}_${row.Unidade}`;
                 if (!summaryMap[key]) {
                   summaryMap[key] = {
@@ -538,7 +525,7 @@ const FileUpload: React.FC = () => {
                 }
               }
             });
-            
+
             for (const key in summaryMap) {
               const entry = summaryMap[key];
               summaryData.push({

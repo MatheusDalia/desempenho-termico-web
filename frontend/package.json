@@ -2,7 +2,6 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://matheusdalia.github.io/desempenho-termico-web/",
   "dependencies": {
     "@reduxjs/toolkit": "^2.2.7",
     "@testing-library/jest-dom": "^5.17.0",
@@ -12,7 +11,6 @@
     "@types/node": "^16.18.104",
     "axios": "^1.7.2",
     "d3-dsv": "^3.0.1",
-    "eslint-webpack-plugin": "^4.2.0",
     "lodash": "^4.17.21",
     "pandas-js": "^0.2.4",
     "papaparse": "^5.4.1",
@@ -26,23 +24,33 @@
     "redux": "^5.0.1",
     "styled-components": "^6.1.12",
     "tailwindcss": "^3.4.7",
-    "typescript": "^4.9.5",
     "web-vitals": "^2.1.4",
     "workerize": "^0.1.8",
     "xlsx": "^0.18.5"
   },
   "scripts": {
     "lint": "eslint 'src/**/*.{js,ts,tsx}'",
-    "start": "SKIP_PREFLIGHT_CHECK=true react-scripts start",
+    "start": "DISABLE_ESLINT=true react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
+    "env": {
+      "node": true,
+      "browser": true
+    },
     "extends": [
       "react-app",
-      "react-app/jest"
-    ]
+      "react-app/jest",
+      "prettier"
+    ],
+    "plugins": [
+      "prettier"
+    ],
+    "rules": {
+      "prettier/prettier": "error"
+    }
   },
   "browserslist": {
     "production": [
@@ -65,11 +73,13 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
+    "jest-worker": "^29.7.0",
     "prettier": "^3.3.3",
     "source-map-loader": "^5.0.0",
     "ts-loader": "^9.5.1",
+    "typescript": "^5.5.4",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.0.4"
+    "webpack-dev-server": "^5.1.0"
   }
 }

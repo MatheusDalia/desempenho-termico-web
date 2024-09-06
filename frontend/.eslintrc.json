@@ -1,14 +1,21 @@
 {
-  "extends": ["eslint:recommended", "plugin:prettier/recommended"],
+  "env": {
+    "node": true, // Adiciona suporte para variáveis globais do Node.js
+    "browser": true // Adiciona suporte para variáveis globais do navegador
+  },
+  "extends": [
+    "eslint:recommended",
+    "plugin:prettier/recommended" // Configura o ESLint para usar Prettier
+  ],
   "parserOptions": {
-    "ecmaVersion": 12,
-    "sourceType": "module"
+    "ecmaVersion": 12, // Define a versão do ECMAScript
+    "sourceType": "module" // Configura o ESLint para usar módulos ES
   },
   "rules": {
     "prettier/prettier": [
       "error",
       {
-        "singleQuote": true
+        "singleQuote": true // Configura o Prettier para usar aspas simples
       }
     ]
   }
