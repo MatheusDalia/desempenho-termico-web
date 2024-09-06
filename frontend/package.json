@@ -12,6 +12,7 @@
     "@types/node": "^16.18.104",
     "axios": "^1.7.2",
     "d3-dsv": "^3.0.1",
+    "eslint-webpack-plugin": "^4.2.0",
     "lodash": "^4.17.21",
     "pandas-js": "^0.2.4",
     "papaparse": "^5.4.1",
@@ -32,7 +33,7 @@
   },
   "scripts": {
     "lint": "eslint 'src/**/*.{js,ts,tsx}'",
-    "start": "react-scripts start",
+    "start": "SKIP_PREFLIGHT_CHECK=true react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -67,7 +68,7 @@
     "prettier": "^3.3.3",
     "source-map-loader": "^5.0.0",
     "ts-loader": "^9.5.1",
-    "webpack": "^5.93.0",
+    "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.4"
   }
