@@ -1,56 +1,46 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 
-interface FileState {
-  vnFile: File | null;
-  csvFile: File | null;
-  additionalFile: File | null;
-  modelFile: File | null; // New state for Model File
-  interval: string;
-  includeCargaTermica: boolean;
-  data: any[];
-}
-
-const initialState: FileState = {
-  vnFile: null,
-  csvFile: null,
-  additionalFile: null,
-  modelFile: null, // Initialize Model File state
+// Define o estado inicial diretamente
+const initialState = {
+  vnFile: null as File | null,
+  csvFile: null as File | null,
+  additionalFile: null as File | null,
+  modelFile: null as File | null,
   interval: '',
   includeCargaTermica: false,
-  data: [],
+  data: [] as any[],
 };
 
 const fileSlice = createSlice({
   name: 'file',
   initialState,
   reducers: {
-    setFile: (state, action: PayloadAction<File | null>) => {
+    setFile(state, action: { payload: File | null }) {
       state.vnFile = action.payload;
     },
-    setComparisonFile: (state, action: PayloadAction<File | null>) => {
+    setComparisonFile(state, action: { payload: File | null }) {
       state.csvFile = action.payload;
     },
-    setAdditionalFile: (state, action: PayloadAction<File | null>) => {
+    setAdditionalFile(state, action: { payload: File | null }) {
       state.additionalFile = action.payload;
     },
-    setModelFile: (state, action: PayloadAction<File | null>) => {
-      // New action for Model File
+    setModelFile(state, action: { payload: File | null }) {
       state.modelFile = action.payload;
     },
-    setInterval: (state, action: PayloadAction<string>) => {
+    setInterval(state, action: { payload: string }) {
       state.interval = action.payload;
     },
-    setIncludeCargaTermica: (state, action: PayloadAction<boolean>) => {
+    setIncludeCargaTermica(state, action: { payload: boolean }) {
       state.includeCargaTermica = action.payload;
     },
-    setData: (state, action: PayloadAction<any[]>) => {
+    setData(state, action: { payload: any[] }) {
       state.data = action.payload;
     },
-    clearFiles: (state) => {
+    clearFiles(state) {
       state.vnFile = null;
       state.csvFile = null;
       state.additionalFile = null;
-      state.modelFile = null; // Clear Model File state
+      state.modelFile = null;
       state.data = [];
     },
   },
@@ -66,4 +56,5 @@ export const {
   setData,
   clearFiles,
 } = fileSlice.actions;
+
 export default fileSlice.reducer;

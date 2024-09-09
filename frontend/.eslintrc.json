@@ -17,6 +17,7 @@
       {
         "singleQuote": true // Configura o Prettier para usar aspas simples
       }
-    ]
+    ],
+    "no-undef": "off" // Desativa a regra no-undef
   }
 }

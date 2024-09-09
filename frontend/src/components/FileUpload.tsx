@@ -15,7 +15,7 @@ const FileUpload: React.FC = () => {
   const [selectedModelFile, setSelectedModelFile] = useState<File | null>(null);
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
   const [outputFile, setOutputFile] = useState<Blob | null>(null);
-  const [selectedInterval, setSelectedInterval] = useState<string>('28');
+  const [selectedInterval, setSelectedInterval] = useState<number>(26);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false
 
   const filterData = (data: any[], roomType: string) => {
@@ -79,14 +79,6 @@ const FileUpload: React.FC = () => {
     return count;
   };
 
-  interface CargaTermInput {
-    cargaFilteredData: any;
-    filteredData: any;
-    codigo: string;
-    codigoSolo: string;
-    thresholdVar: any;
-  }
-
   // Alterar o parâmetro threshold para ser um número em vez de um booleano.
   function cargaTerm({
     cargaFilteredData,
@@ -94,7 +86,13 @@ const FileUpload: React.FC = () => {
     codigo,
     codigoSolo,
     thresholdVar,
-  }: CargaTermInput): number | number {
+  }: {
+    cargaFilteredData: any[];
+    filteredData: any[];
+    codigo: string;
+    codigoSolo: string;
+    thresholdVar: number;
+  }): number | number {
     // Rename the columns in filteredData if there are duplicates
     const filteredDataRenamed = filteredData.map(
       (row: { [x: string]: any }) => {
@@ -118,7 +116,7 @@ const FileUpload: React.FC = () => {
     const columnTitles = Object.keys(cargaFilteredData[0]);
     console.log('Column Titles:', columnTitles);
 
-    const tempThreshold = parseFloat(thresholdVar);
+    const tempThreshold = thresholdVar;
     const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
 
     console.log('Temperature Column Key:', temperatureColumnKey);
@@ -408,9 +406,7 @@ const FileUpload: React.FC = () => {
                   filteredData,
                   `${codigo}:Zone Operative Temperature [C](Hourly)`,
                 );
-                const numericSelectedInterval = parseFloat(
-                  selectedInterval as string,
-                );
+                const numericSelectedInterval = selectedInterval;
                 const nhftValue = getNhftValue(
                   filteredData,
                   `${codigo}:Zone Operative Temperature [C](Hourly)`,
@@ -452,7 +448,7 @@ const FileUpload: React.FC = () => {
                       filteredData,
                       codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
                       codigoSolo: codigo,
-                      thresholdVar: 26,
+                      thresholdVar: numericSelectedInterval,
                     });
                     cargaResfrValue = calculateCargaResfr(
                       cargaFilteredData,
@@ -698,7 +694,7 @@ const FileUpload: React.FC = () => {
           Interval:
           <select
             value={selectedInterval}
-            onChange={(e) => setSelectedInterval(e.target.value)}
+            onChange={(e) => setSelectedInterval(Number(e.target.value))}
           >
             <option value="26">
               Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C
