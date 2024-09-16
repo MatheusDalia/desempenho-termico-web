@@ -79,7 +79,6 @@ const FileUpload: React.FC = () => {
     return count;
   };
 
-  // Alterar o parâmetro threshold para ser um número em vez de um booleano.
   function cargaTerm({
     cargaFilteredData,
     filteredData,
@@ -92,87 +91,92 @@ const FileUpload: React.FC = () => {
     codigo: string;
     codigoSolo: string;
     thresholdVar: number;
-  }): number | number {
-    // Rename the columns in filteredData if there are duplicates
-    const filteredDataRenamed = filteredData.map(
-      (row: { [x: string]: any }) => {
-        const renamedRow: { [key: string]: any } = {};
-        for (const key in row) {
-          renamedRow[`${key}_filtered`] = row[key];
-        }
-        return renamedRow;
-      },
-    );
-
+  }): number {
+    // Renomear as colunas de filteredData se houver duplicatas
+    const filteredDataRenamed = filteredData.map((row: { [x: string]: any }) => {
+      const renamedRow: { [key: string]: any } = {};
+      for (const key in row) {
+        renamedRow[`${key}_filtered`] = row[key]; // Colocar `${}` entre colchetes
+      }
+      return renamedRow;
+    });
+  
     console.log('Filtered Data Renamed:', filteredDataRenamed);
-
-    // Add the columns of filteredData to cargaFilteredData
+  
+    // Adicionar as colunas de filteredData ao cargaFilteredData
     cargaFilteredData = cargaFilteredData.map((row: any, index: number) => {
       return { ...row, ...filteredDataRenamed[index] };
     });
-
+  
     console.log('Updated Carga Filtered Data:', cargaFilteredData);
-
+  
     const columnTitles = Object.keys(cargaFilteredData[0]);
     console.log('Column Titles:', columnTitles);
-
+  
     const tempThreshold = thresholdVar;
     const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
-
+  
     console.log('Temperature Column Key:', temperatureColumnKey);
     console.log('Temp Threshold:', tempThreshold);
-
-    // Filter rows based on the temperature threshold
+  
+    // Filtro com base no threshold de temperatura
     let filteredRows;
     if (tempThreshold === 26) {
       const filteredRows1 = cargaFilteredData.filter(
-        (row: { [x: string]: number }) => row[temperatureColumnKey] < 18,
+        (row: { [x: string]: number }) => row[temperatureColumnKey] < 18
       );
       const filteredRows2 = cargaFilteredData.filter(
-        (row: { [x: string]: number }) => row[temperatureColumnKey] > 26,
+        (row: { [x: string]: number }) => row[temperatureColumnKey] > 26
       );
       filteredRows = [...filteredRows1, ...filteredRows2];
     } else {
+      console.log("Medabots")
       filteredRows = cargaFilteredData.filter(
         (row: { [x: string]: number }) =>
-          row[temperatureColumnKey] > tempThreshold,
+          row[temperatureColumnKey] > 26
       );
     }
-
+  
     console.log('Filtered Rows:', filteredRows);
-
+  
     if (columnTitles.includes(codigo)) {
-      // Calculate the sum of the values in the codigo column
+      // Calcular a soma dos valores na coluna 'codigo'
       const totalSum = filteredRows.reduce(
-        (sum: number, row: { [x: string]: any }) => {
-          const value = parseFloat(row[codigo]);
+        (sum: number, row: { [x: string]: any }, index: number) => {
+          const value = parseFloat(row[`${codigo}`]);
+          
+          // Logando cada valor para identificar se é NaN ou válido
+          console.log(`Row ${index} - Codigo Value: ${value}`);
           return sum + (isNaN(value) ? 0 : value);
         },
-        0,
+        0
       );
-
+  
       console.log('Total Sum of Codigo Column:', totalSum);
-
+  
       const additionalColumnKey = `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Heating Energy [J](Hourly)`;
       if (columnTitles.includes(additionalColumnKey)) {
-        // Get the additional column values
+        // Soma os valores de uma coluna adicional
         const cargaResfrValue = filteredRows.reduce(
-          (sum: number, row: { [x: string]: any }) => {
+          (sum: number, row: { [x: string]: any }, index: number) => {
             const value = parseFloat(row[additionalColumnKey]);
+            
+            // Logando cada valor de cargaResfr
+            console.log(`Row ${index} - Carga Resfr Value: ${value}`);
             return sum + (isNaN(value) ? 0 : value);
           },
-          0,
+          0
         );
-
+  
         console.log('Carga Resfr Value:', cargaResfrValue);
-
+  
         const finalSum = totalSum + cargaResfrValue;
         const totalConverted = finalSum / 3600000;
         console.log('Final Sum:', finalSum);
         console.log('Total Converted:', totalConverted);
         return totalConverted;
       }
-
+  
       const totalConverted = totalSum / 3600000;
       console.log('Total Converted (No Carga Resfr):', totalConverted);
       return totalConverted;
@@ -181,55 +185,59 @@ const FileUpload: React.FC = () => {
       return 0;
     }
   }
-
+  
   const calculateCargaResfr = (
     cargaFilteredData: any[],
     codigoSolo: string,
-    thresholdVar: number,
+    thresholdVar: number
   ) => {
     const columnTitles = Object.keys(cargaFilteredData[0]);
     const tempThreshold = parseFloat(thresholdVar.toString());
     const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
-
+  
+    if (!columnTitles.includes(temperatureColumnKey)) {
+      console.error(`Temperature column ${temperatureColumnKey} not found!`);
+      return 0;
+    }
+  
     let filteredRows;
     if (tempThreshold === 26) {
       const filteredRows1 = cargaFilteredData.filter(
-        (row: { [x: string]: number }) => row[temperatureColumnKey] < 18,
+        (row: { [x: string]: number }) => row[temperatureColumnKey] < 18
       );
       const filteredRows2 = cargaFilteredData.filter(
-        (row: { [x: string]: number }) => row[temperatureColumnKey] > 26,
+        (row: { [x: string]: number }) => row[temperatureColumnKey] > 26
       );
       filteredRows = [...filteredRows1, ...filteredRows2];
     } else {
       filteredRows = cargaFilteredData.filter(
         (row: { [x: string]: number }) =>
-          row[temperatureColumnKey] > tempThreshold,
+          row[temperatureColumnKey] > tempThreshold
       );
     }
-
-    if (
-      columnTitles.includes(
-        `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
-      )
-    ) {
-      const cargaResfrValue = filteredRows.reduce(
-        (sum: number, row: { [x: string]: any }) => {
-          const value = parseFloat(
-            row[
-              `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`
-            ],
-          );
-          return sum + (isNaN(value) ? 0 : value);
-        },
-        0,
-      );
-
-      return cargaResfrValue / 3600000; // Convert to desired units (if necessary)
-    } else {
-      console.log('Column for Carga Resfr not found.');
+  
+    if (filteredRows.length === 0) {
+      console.warn('No rows passed the filter.');
+    }
+  
+    const coolingColumnKey = `${codigoSolo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`;
+  
+    if (!columnTitles.includes(coolingColumnKey)) {
+      console.error(`Cooling column ${coolingColumnKey} not found!`);
       return 0;
     }
+  
+    const cargaResfrValue = filteredRows.reduce(
+      (sum: number, row: { [x: string]: any }) => {
+        const value = parseFloat(row[coolingColumnKey]);
+        return sum + (isNaN(value) ? 0 : value);
+      },
+      0
+    );
+  
+    return cargaResfrValue / 3600000; // Converter para as unidades desejadas
   };
+  
 
   // Process Excel files
   const processExcelFile = (file: File) => {
@@ -699,8 +707,8 @@ const FileUpload: React.FC = () => {
             <option value="26">
               Intervalo 1 - 18,0 °C &lt; ToAPPa &lt; 26,0 °C
             </option>
-            <option value="32">Intervalo 2 - ToAPP &lt; 32,0 °C</option>
-            <option value="38">Intervalo 3 - ToAPP &lt; 38,0 °C</option>
+            <option value="28">Intervalo 2 - ToAPP &lt; 28,0 °C</option>
+            <option value="30">Intervalo 3 - ToAPP &lt; 30,0 °C</option>
           </select>
         </label>
       </div>
