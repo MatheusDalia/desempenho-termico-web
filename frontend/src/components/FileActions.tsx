@@ -3,7 +3,7 @@ import React from 'react';
 interface FileActionsProps {
   onGenerate: () => void;
   canGenerate: boolean;
-  outputFile: any | null;
+  outputFile: Blob | null;
   isLoading: boolean;
 }
 
