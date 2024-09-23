@@ -32,7 +32,7 @@ const FileUpload: React.FC = () => {
   );
   const [additionalFile, setAdditionalFile] = useState<File | null>(null);
   const [additionalFile2, setAdditionalFile2] = useState<File | null>(null);
-  const [outputFile, setOutputFile] = useState<Blob[]>([]);
+  const [outputFile, setOutputFile] = useState<Blob | null>(null);
 
   const [selectedInterval, setSelectedInterval] = useState<number>(26);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false
