@@ -1,5 +1,15 @@
 // src/utils/dataUtils.ts
+import { notifyError } from './notifyUtils';
+
 export const filterData = (data: any[], roomType: string) => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    notifyError(
+      'Dados Inválidos',
+      'Os dados fornecidos estão vazios ou não são válidos.',
+    );
+    return [];
+  }
+
   roomType = roomType.toLowerCase();
   const cleanedData = data.map((row) => {
     const cleanedRow: { [key: string]: any } = {};
@@ -28,16 +38,42 @@ export const filterData = (data: any[], roomType: string) => {
 };
 
 export const getMaxTemperature = (data: any[], key: string) => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    notifyError('Dados Inválidos', 'Os dados fornecidos estão vazios.');
+    return NaN;
+  }
+
   const temperatures = data
     .map((row) => parseFloat(row[key]))
     .filter((t) => !isNaN(t));
+
+  if (temperatures.length === 0) {
+    notifyError(
+      'Dados Inválidos',
+      `Nenhum valor de temperatura encontrado para a chave: ${key}.`,
+    );
+    return NaN;
+  }
+
   return parseFloat(Math.max(...temperatures).toFixed(2));
 };
 
 export const getMinTemperature = (data: any[], key: string) => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    notifyError('Dados Inválidos', 'Os dados fornecidos estão vazios.');
+    return NaN;
+  }
   const temperatures = data
     .map((row) => parseFloat(row[key]))
     .filter((t) => !isNaN(t));
+
+  if (temperatures.length === 0) {
+    notifyError(
+      'Dados Inválidos',
+      `Nenhum valor de temperatura encontrado para a chave: ${key}.`,
+    );
+    return NaN;
+  }
   return parseFloat(Math.min(...temperatures).toFixed(2));
 };
 
@@ -45,6 +81,11 @@ export const getNhftValue = (data: any[], key: string, threshold: number) => {
   const valueColumn = data
     .map((row) => parseFloat(row[key]))
     .filter((t) => !isNaN(t));
+
+  if (valueColumn.length === 0) {
+    notifyError('Erro', 'Nenhum valor válido encontrado.');
+    return 0; // Or handle it in another way
+  }
 
   let count = 0;
   if (threshold === 26) {
