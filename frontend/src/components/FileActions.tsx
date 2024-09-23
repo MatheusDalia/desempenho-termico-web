@@ -3,7 +3,7 @@ import React from 'react';
 interface FileActionsProps {
   onGenerate: () => void;
   canGenerate: boolean;
-  outputFile: Blob | null;
+  outputFile: any | null;
   isLoading: boolean;
 }
 
@@ -13,6 +13,8 @@ const FileActions: React.FC<FileActionsProps> = ({
   outputFile,
   isLoading,
 }) => {
+  console.log('Output File:', outputFile); // Log the outputFile value
+
   return (
     <div style={{ marginTop: '20px' }}>
       <button
@@ -48,4 +50,3 @@ const FileActions: React.FC<FileActionsProps> = ({
 };
 
 export default FileActions;
-

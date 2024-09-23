@@ -5,21 +5,29 @@ import './FileUpload.css';
 
 interface FileDropZoneProps {
   onDrop: (files: File[]) => void;
-  fileType: 'csv' | 'xlsx';
   selectedFile: File | null;
   onDelete: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  label?: string;
+  acceptMultipleFileTypes?: boolean; // Adicionar a opção de aceitar múltiplos tipos de arquivo
 }
 
 const FileDropZone: React.FC<FileDropZoneProps> = ({
   onDrop,
-  fileType,
   selectedFile,
   onDelete,
+  label,
+  acceptMultipleFileTypes = false, // Definir como falso por padrão
 }) => {
-  // Define accepted file types based on fileType prop
-  const accept: Accept = fileType === 'csv'
-    ? { 'text/csv': [] }
-    : { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [] };
+  // Define tipos de arquivos aceitos
+  const accept: Accept = acceptMultipleFileTypes
+    ? {
+        'text/csv': [],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
+      }
+    : {
+        'text/xlsx': [],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
+      }; // Apenas xlsx por padrão, mas pode aceitar mais se explicitado
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
@@ -35,13 +43,18 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
         textAlign: 'center',
         width: '300px',
         position: 'relative',
-        marginTop: fileType === 'csv' ? '0' : '20px',
+        marginTop: '20px',
       }}
     >
       <input {...getInputProps()} />
+      {label && <p>{label}</p>} {/* Exibe o label, se fornecido */}
       {selectedFile ? (
         <div style={{ position: 'relative' }}>
-          {fileType === 'csv' ? <FaFileCsv size={48} /> : <FaFileExcel size={48} />}
+          {selectedFile.type === 'text/csv' ? (
+            <FaFileCsv size={48} />
+          ) : (
+            <FaFileExcel size={48} />
+          )}
           <p>{selectedFile.name}</p>
           <button
             onClick={onDelete}
@@ -75,11 +88,13 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
           </button>
         </div>
       ) : (
-        <p>Drag & drop a {fileType === 'csv' ? 'VN CSV' : 'Model Excel'} file here, or click to select</p>
+        <p>
+          Drag & drop a {acceptMultipleFileTypes ? 'CSV or Excel' : 'Excel'}{' '}
+          file here, or click to select
+        </p>
       )}
     </div>
   );
 };
 
 export default FileDropZone;
-

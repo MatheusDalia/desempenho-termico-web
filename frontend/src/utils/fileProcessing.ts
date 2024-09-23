@@ -44,10 +44,10 @@ const parseCsvData = (csvText: string) => {
     const values = line.split(',');
     const rowData: { [key: string]: any } = {};
     headers.forEach((header, index) => {
-      rowData[header.trim()] = values[index].trim();
+      // Verifica se values[index] existe e é uma string antes de usar trim()
+      rowData[header.trim()] = values[index] ? values[index].trim() : null;
     });
     return rowData;
   });
   return rows;
 };
-
