@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDropzone, Accept } from 'react-dropzone';
+import { useDropzone } from 'react-dropzone';
 import { FaFileExcel, FaFileCsv, FaTimes } from 'react-icons/fa';
 import './FileUpload.css';
 
@@ -19,15 +19,14 @@ const FileDropZone: React.FC<FileDropZoneProps> = ({
   acceptMultipleFileTypes = false, // Definir como falso por padrão
 }) => {
   // Define tipos de arquivos aceitos
-  const accept: Accept = acceptMultipleFileTypes
+  const accept: Record<string, string[]> = acceptMultipleFileTypes
     ? {
         'text/csv': [],
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
       }
     : {
-        'text/xlsx': [],
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [],
-      }; // Apenas xlsx por padrão, mas pode aceitar mais se explicitado
+      };
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,

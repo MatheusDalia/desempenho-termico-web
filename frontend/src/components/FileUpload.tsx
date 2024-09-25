@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
-import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import './FileUpload.css';

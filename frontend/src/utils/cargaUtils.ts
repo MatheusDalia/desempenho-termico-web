@@ -77,7 +77,6 @@ export const calculateCargaResfr = (
   codigoSolo: string,
   thresholdVar: number,
 ) => {
-  const columnTitles = Object.keys(cargaFilteredData[0]);
   const tempThreshold = parseFloat(thresholdVar.toString());
   const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
 
