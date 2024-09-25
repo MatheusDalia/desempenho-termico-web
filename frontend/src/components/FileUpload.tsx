@@ -200,6 +200,97 @@ const FileUpload: React.FC = () => {
     }
   }, []);
 
+  type NivelMinimoData = {
+    Pavimento: string;
+    'Unidades Habitacionais': any; // Altere `any` para o tipo apropriado
+    'Temp Max NORMAL UH': number | null;
+    'Temp Max REAL UH': number | null;
+    'PHFT NORMAL UH': number | null; // Altere `number` para o tipo apropriado
+    'PHFT REAL UH': number | null; // Altere `number` para o tipo apropriado
+    Status: string;
+};
+
+const createNivelMinimoData = (summaryData: any[], summaryModelRealData: any[]): NivelMinimoData[] => {
+  const nivelMinimoMap: { [key: string]: NivelMinimoData } = {};
+
+  console.log("Sumário aqui?", summaryData);
+
+  // Preencher o mapa com dados das unidades habitacionais do modelo normal
+  summaryData.forEach(row => {
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade;
+
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+      console.log('Chave:', key);
+      if (!nivelMinimoMap[key]) {
+          nivelMinimoMap[key] = {
+              Pavimento: pavimento,
+              'Unidades Habitacionais': unidade,
+              'Temp Max NORMAL UH': row['MaxTemp'],
+              'PHFT NORMAL UH': row['PHFT_Avg'],
+              'Temp Max REAL UH': null, // Para ser preenchido depois
+              'PHFT REAL UH': null, // Para ser preenchido depois
+              'Status': '',
+          };
+      } else {
+          // Se a unidade já existe, atualize os valores
+          nivelMinimoMap[key]['Temp Max NORMAL UH'] = Math.max(nivelMinimoMap[key]['Temp Max NORMAL UH'] as number, row['MaxTemp']);
+          nivelMinimoMap[key]['PHFT NORMAL UH'] = (nivelMinimoMap[key]['PHFT NORMAL UH'] as number + row['PHFT_Avg']) / 2; // Calcular a média
+      }
+  });
+
+  // Preencher os dados do modelo real
+  summaryModelRealData.forEach(row => {
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade; // Aqui, você deve ter uma unidade correspondente
+
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+      if (nivelMinimoMap[key]) {
+          // Preencher os valores reais
+          nivelMinimoMap[key]['Temp Max REAL UH'] = row['MaxTemp']; // Supondo que você tenha um campo específico
+          nivelMinimoMap[key]['PHFT REAL UH'] = row['PHFT_Avg']; // Supondo que você tenha um campo específico
+      }
+  });
+
+  // Verificar status após todos os valores serem preenchidos
+  Object.values(nivelMinimoMap).forEach(item => {
+      const tempNormal = item['Temp Max NORMAL UH'];
+      const phftNormal = item['PHFT NORMAL UH'];
+      const tempReal = item['Temp Max REAL UH'];
+      const phftReal = item['PHFT REAL UH'];
+
+      // Verificar se tempReal e phftReal não são null
+      const isTempRealValid = tempReal !== null;
+      const isPhftRealValid = phftReal !== null;
+
+      // Verificar se tempNormal e phftNormal não são null
+      const isTempNormalValid = tempNormal !== null;
+      const isPhftNormalValid = phftNormal !== null;
+
+      if ((isTempRealValid && isTempNormalValid && tempReal > tempNormal) || 
+          (isPhftRealValid && isPhftNormalValid && phftReal < phftNormal)) {
+          item['Status'] = 'REPROVADO';
+      } else {
+          item['Status'] = 'APROVADO';
+       
+      }
+  });
+
+  // Retornar os dados formatados como um array
+  return Object.values(nivelMinimoMap);
+};
+
+
+
+
+
+
+
+
+
+
+
+
   const generateOutputFile = async () => {
     if (
       (selectedVNFile && selectedModelFile && !includeModeloReal) ||
@@ -381,6 +472,8 @@ const FileUpload: React.FC = () => {
             // Criar planilhas para os dados de saída e resumo
             const outputWorksheet = XLSX.utils.json_to_sheet(cleanOutputData);
             const summaryWorksheet = XLSX.utils.json_to_sheet(summaryData);
+            
+        
 
             // Criar uma nova planilha e adicionar ambas as abas
             const newWorkbook = XLSX.utils.book_new();
@@ -394,6 +487,8 @@ const FileUpload: React.FC = () => {
               summaryWorksheet,
               'Summary',
             );
+
+            
 
             // Escrever a planilha em um array
             const output = XLSX.write(newWorkbook, { type: 'array' });
@@ -576,12 +671,16 @@ const FileUpload: React.FC = () => {
                     });
                   }
 
+                  // Criar a nova aba "Análise de Nível Mínimo"
+                 const nivelMinimoData = createNivelMinimoData(summaryData, summaryModelRealData);
+
                   // Criar planilhas para os dados de saída e resumo
                   const outputModelRealWorksheet = XLSX.utils.json_to_sheet(
                     cleanOutputModelRealData,
                   );
                   const summaryModelRealWorksheet =
                     XLSX.utils.json_to_sheet(summaryModelRealData);
+                  const nivelMinimoWorksheet = XLSX.utils.json_to_sheet(nivelMinimoData);  
 
                   // Adicionar abas à planilha existente
                   XLSX.utils.book_append_sheet(
@@ -594,6 +693,7 @@ const FileUpload: React.FC = () => {
                     summaryModelRealWorksheet,
                     'Summary_Model_Real',
                   );
+                  XLSX.utils.book_append_sheet(newWorkbook, nivelMinimoWorksheet, 'Análise de Nível Mínimo');
 
                   // Escrever a planilha em um array
                   const outputModelReal = XLSX.write(newWorkbook, {
