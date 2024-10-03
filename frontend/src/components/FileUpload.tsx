@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import './FileUpload.css';
 import {
@@ -198,9 +198,8 @@ const FileUpload: React.FC = () => {
     summaryData.forEach((row) => {
       const pavimento = row.Pavimento;
       const unidade = row.Unidade;
-
       const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
-      console.log('Chave:', key);
+
       if (!nivelMinimoMap[key]) {
         nivelMinimoMap[key] = {
           Pavimento: pavimento,
@@ -227,8 +226,8 @@ const FileUpload: React.FC = () => {
     summaryModelRealData.forEach((row) => {
       const pavimento = row.Pavimento;
       const unidade = row.Unidade;
-
       const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+
       if (nivelMinimoMap[key]) {
         // Preencher os valores reais
         nivelMinimoMap[key]['Temp Max REAL UH'] = row['MaxTemp'];
@@ -238,45 +237,33 @@ const FileUpload: React.FC = () => {
 
     // Verificar status após todos os valores serem preenchidos
     Object.values(nivelMinimoMap).forEach((item) => {
-      const tempNormal = item['Temp Max REF UH'];
-      const phftNormal = item['PHFT REF UH'];
-      const tempReal = item['Temp Max REAL UH'];
-      const phftReal = item['PHFT REAL UH'];
+      const { 'Temp Max REF UH': tempNormal, 'PHFT REF UH': phftNormal } = item;
+      const { 'Temp Max REAL UH': tempReal, 'PHFT REAL UH': phftReal } = item;
 
-      // Verificar se tempReal e phftReal não são null
       const isTempRealValid = tempReal !== null;
       const isPhftRealValid = phftReal !== null;
-
-      // Verificar se tempNormal e phftNormal não são null
       const isTempNormalValid = tempNormal !== null;
       const isPhftNormalValid = phftNormal !== null;
 
-      const pavimento = item['Pavimento']; // Captura o pavimento atual
+      const pavimento = item['Pavimento'];
 
       // Verifica se o pavimento é "Cobertura" ou "cobertura"
       if (pavimento === 'Cobertura' || pavimento === 'cobertura') {
-        if (
+        item['Status'] =
           (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 2) ||
           (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-        ) {
-          item['Status'] = 'REPROVADO';
-        } else {
-          item['Status'] = 'APROVADO';
-        }
+            ? 'REPROVADO'
+            : 'APROVADO';
       } else {
         // Para outros tipos de pavimento
-        if (
+        item['Status'] =
           (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 1) ||
           (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-        ) {
-          item['Status'] = 'REPROVADO';
-        } else {
-          item['Status'] = 'APROVADO';
-        }
+            ? 'REPROVADO'
+            : 'APROVADO';
       }
     });
 
-    // Retornar os dados formatados como um array
     return Object.values(nivelMinimoMap);
   };
 
@@ -287,422 +274,430 @@ const FileUpload: React.FC = () => {
     [key: string]: any; // Permite propriedades adicionais com string como chave
   }
 
+  // Função principal para gerar o arquivo de saída
   const generateOutputFile = async () => {
-    if (
-      (selectedVNFile && selectedModelFile && !includeModeloReal) ||
-      (selectedVNFile &&
-        selectedModelFile &&
-        selectedVNFile2 &&
-        includeModeloReal)
-    ) {
-      setIsLoading(true); // Inicia o spinner de carregamento
-      try {
-        // Processar arquivo VN
-        const vnData = await new Promise<any[]>((resolve, reject) => {
-          Papa.parse(selectedVNFile, {
-            header: true,
-            complete: (results: Papa.ParseResult<any>) => resolve(results.data),
-            error: (error: any) => reject(error),
-          });
+    // Função para parsear arquivos CSV usando PapaParse
+    const parseFile = (file: File): Promise<any[]> => {
+      return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          complete: (results: Papa.ParseResult<any>) => resolve(results.data),
+          error: (error: any) => reject(error),
         });
+      });
+    };
 
-        // Processar arquivo Model Excel
-        let modelData; // Definido aqui para ser usado em ambos os casos
+    // Função para parsear arquivos Excel usando FileReader e ExcelJS
+    const parseModelExcel = (file: File): Promise<ModelRow[]> => {
+      return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
           try {
             const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-            modelData = XLSX.utils.sheet_to_json(worksheet); // Atribuir aqui
 
-            const outputData = await Promise.all(
-              (modelData as ModelRow[]).map(async (modelRow) => {
-                const codigo = modelRow['Código'];
-                const tipoAmbiente = modelRow['Tipo de ambiente'];
+            // Criação de um novo workbook e leitura do arquivo
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(data); // Carrega o buffer com o arquivo Excel
 
-                if (!codigo || !tipoAmbiente) {
-                  console.warn(
-                    'Skipping row due to missing Código or Tipo de ambiente:',
-                    modelRow,
-                  );
-                  return null;
-                }
+            const worksheet = workbook.worksheets[0]; // Obtém a primeira planilha
+            const jsonData: ModelRow[] = [];
 
-                const filteredData = filterData(vnData, tipoAmbiente);
-                const minTemp = getMinTemperature(
-                  filteredData,
-                  `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                );
-                const maxTemp = getMaxTemperature(
-                  filteredData,
-                  `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                );
-                const numericSelectedInterval = selectedInterval;
-                const nhftValue = getNhftValue(
-                  filteredData,
-                  `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                  numericSelectedInterval,
-                );
-                let phftValue =
-                  tipoAmbiente === 'Quarto'
-                    ? (nhftValue / 3650) * 100
-                    : tipoAmbiente === 'Misto'
-                      ? (nhftValue / 6570) * 100
-                      : (nhftValue / 2920) * 100;
-
-                let carga = 0;
-                let cargaResfrValue = 0;
-
-                if (includeCargaTermica && additionalFile) {
-                  try {
-                    const cargaData = await new Promise<any[]>(
-                      (resolve, reject) => {
-                        Papa.parse(additionalFile, {
-                          header: true,
-                          complete: (results: Papa.ParseResult<any>) =>
-                            resolve(results.data),
-                          error: (error: any) => reject(error),
-                        });
-                      },
-                    );
-
-                    const cargaFilteredData = filterData(
-                      cargaData,
-                      tipoAmbiente,
-                    );
-                    const cargaTermicaResult = cargaTerm({
-                      cargaFilteredData,
-                      filteredData,
-                      codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
-                      codigoSolo: codigo,
-                      thresholdVar: numericSelectedInterval,
-                    });
-                    cargaResfrValue = calculateCargaResfr(
-                      cargaFilteredData,
-                      codigo,
-                      26,
-                    );
-                    carga = cargaTermicaResult;
-                  } catch (error) {
-                    console.error(
-                      'Erro ao processar arquivo de Carga Térmica:',
-                      error,
-                    );
-                  }
-                }
-
-                return {
-                  Pavimento: modelRow['Pavimento'],
-                  Unidade: modelRow['Unidade'],
-                  Código: codigo,
-                  Nome: modelRow['Nome'],
-                  'Tipo de ambiente': tipoAmbiente,
-                  'MIN TEMP': minTemp,
-                  'MAX TEMP': maxTemp,
-                  NHFT: nhftValue,
-                  PHFT: phftValue,
-                  'CARGA RESF': includeCargaTermica
-                    ? carga - cargaResfrValue
-                    : undefined,
-                  'CARGA AQUE': includeCargaTermica
-                    ? cargaResfrValue
-                    : undefined,
-                  'CARGA TERM': includeCargaTermica ? carga : undefined,
-                };
-              }),
-            );
-
-            // Remover entradas nulas
-            const cleanOutputData = outputData.filter((row) => row !== null);
-
-            // Criar dados de resumo
-            const summaryData = [];
-            const summaryMap: Record<any, any> = {};
-
-            cleanOutputData.forEach((row) => {
-              if (row) {
-                const key = `${row.Pavimento}_${row.Unidade}`;
-                if (!summaryMap[key]) {
-                  summaryMap[key] = {
-                    Pavimento: row.Pavimento,
-                    Unidade: row.Unidade,
-                    MinTemp: row['MIN TEMP'],
-                    MaxTemp: row['MAX TEMP'],
-                    PHFT_Sum: row.PHFT || 0,
-                    CargaTermica_Sum: row['CARGA TERM'] || 0,
-                    Count: 1,
+            // Converte cada linha da planilha para um objeto JSON
+            worksheet.eachRow(
+              { includeEmpty: true },
+              (
+                row: {
+                  eachCell: (
+                    arg0: { includeEmpty: boolean },
+                    arg1: (cell: any, colNumber: any) => void,
+                  ) => void;
+                },
+                rowNumber: number,
+              ) => {
+                if (rowNumber > 1) {
+                  // Ignora o cabeçalho (primeira linha)
+                  const rowData: ModelRow = {
+                    Pavimento: '',
+                    Unidade: '',
+                    Nome: '',
                   };
-                } else {
-                  summaryMap[key].MinTemp = Math.min(
-                    summaryMap[key].MinTemp,
-                    row['MIN TEMP'],
-                  );
-                  summaryMap[key].MaxTemp = Math.max(
-                    summaryMap[key].MaxTemp,
-                    row['MAX TEMP'],
-                  );
-                  summaryMap[key].PHFT_Sum += row.PHFT || 0;
-                  summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
-                  summaryMap[key].Count += 1;
+                  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                    const columnName = worksheet.getRow(1).getCell(colNumber)
+                      .value as string; // Obtém o nome da coluna
+                    rowData[columnName] = cell.value; // Adiciona ao objeto com o nome da coluna
+                  });
+                  jsonData.push(rowData); // Adiciona a linha convertida ao array
                 }
-              }
-            });
-
-            for (const key in summaryMap) {
-              const entry = summaryMap[key];
-              summaryData.push({
-                Pavimento: entry.Pavimento,
-                Unidade: entry.Unidade,
-                MinTemp: entry.MinTemp,
-                MaxTemp: entry.MaxTemp,
-                PHFT_Avg: entry.PHFT_Sum / entry.Count,
-                CargaTermica_Sum: entry.CargaTermica_Sum,
-              });
-            }
-
-            // Criar planilhas para os dados de saída e resumo
-            const outputWorksheet = XLSX.utils.json_to_sheet(cleanOutputData);
-            const summaryWorksheet = XLSX.utils.json_to_sheet(summaryData);
-
-            // Criar uma nova planilha e adicionar ambas as abas
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(
-              newWorkbook,
-              outputWorksheet,
-              'Output',
-            );
-            XLSX.utils.book_append_sheet(
-              newWorkbook,
-              summaryWorksheet,
-              'Summary',
+              },
             );
 
-            // Escrever a planilha em um array
-            const output = XLSX.write(newWorkbook, { type: 'array' });
-
-            // Definir o arquivo gerado para o estado outputFile
-            setOutputFile(
-              new Blob([output], {
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              }),
-            );
-
-            // Processar arquivo Modelo Real, se selecionado
-            if (includeModeloReal && selectedVNFile2) {
-              const vnData2 = await new Promise<any[]>((resolve, reject) => {
-                Papa.parse(selectedVNFile2, {
-                  header: true,
-                  complete: (results: Papa.ParseResult<any>) =>
-                    resolve(results.data),
-                  error: (error: any) => reject(error),
-                });
-              });
-
-              // Aqui, modelData já está disponível
-              const outputModelRealData = await Promise.all(
-                (modelData as ModelRow[]).map(async (modelRow) => {
-                  const codigo = modelRow['Código'];
-                  const tipoAmbiente = modelRow['Tipo de ambiente'];
-
-                  if (!codigo || !tipoAmbiente) {
-                    console.warn(
-                      'Skipping row due to missing Código or Tipo de ambiente:',
-                      modelRow,
-                    );
-                    return null;
-                  }
-
-                  const filteredData = filterData(vnData2, tipoAmbiente);
-                  const minTemp = getMinTemperature(
-                    filteredData,
-                    `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                  );
-                  const maxTemp = getMaxTemperature(
-                    filteredData,
-                    `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                  );
-                  const numericSelectedInterval = selectedInterval;
-                  const nhftValue = getNhftValue(
-                    filteredData,
-                    `${codigo}:Zone Operative Temperature [C](Hourly)`,
-                    numericSelectedInterval,
-                  );
-                  let phftValue =
-                    tipoAmbiente === 'Quarto'
-                      ? (nhftValue / 3650) * 100
-                      : tipoAmbiente === 'Misto'
-                        ? (nhftValue / 6570) * 100
-                        : (nhftValue / 2920) * 100;
-
-                  let carga = 0;
-                  let cargaResfrValue = 0;
-
-                  if (includeCargaTermica && additionalFile2) {
-                    try {
-                      const cargaData2 = await new Promise<any[]>(
-                        (resolve, reject) => {
-                          Papa.parse(additionalFile2, {
-                            header: true,
-                            complete: (results: Papa.ParseResult<any>) =>
-                              resolve(results.data),
-                            error: (error: any) => reject(error),
-                          });
-                        },
-                      );
-
-                      const cargaFilteredData2 = filterData(
-                        cargaData2,
-                        tipoAmbiente,
-                      );
-                      const cargaTermicaResult = cargaTerm({
-                        cargaFilteredData: cargaFilteredData2,
-                        filteredData,
-                        codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
-                        codigoSolo: codigo,
-                        thresholdVar: numericSelectedInterval,
-                      });
-                      cargaResfrValue = calculateCargaResfr(
-                        cargaFilteredData2,
-                        codigo,
-                        26,
-                      );
-                      carga = cargaTermicaResult;
-                    } catch (error) {
-                      console.error(
-                        'Erro ao processar arquivo de Carga Térmica:',
-                        error,
-                      );
-                    }
-                  }
-
-                  return {
-                    Pavimento: modelRow['Pavimento'],
-                    Unidade: modelRow['Unidade'],
-                    Código: codigo,
-                    Nome: modelRow['Nome'],
-                    'Tipo de ambiente': tipoAmbiente,
-                    'MIN TEMP': minTemp,
-                    'MAX TEMP': maxTemp,
-                    NHFT: nhftValue,
-                    PHFT: phftValue,
-                    'CARGA RESF': includeCargaTermica
-                      ? carga - cargaResfrValue
-                      : undefined,
-                    'CARGA AQUE': includeCargaTermica
-                      ? cargaResfrValue
-                      : undefined,
-                    'CARGA TERM': includeCargaTermica ? carga : undefined,
-                  };
-                }),
-              );
-
-              // Remover entradas nulas
-              const cleanOutputModelRealData = outputModelRealData.filter(
-                (row) => row !== null,
-              );
-
-              // Criar dados de resumo para Modelo Real
-              const summaryModelRealData = [];
-              const summaryModelRealMap: Record<any, any> = {};
-
-              cleanOutputModelRealData.forEach((row) => {
-                if (row) {
-                  const key = `${row.Pavimento}_${row.Unidade}`;
-                  if (!summaryModelRealMap[key]) {
-                    summaryModelRealMap[key] = {
-                      Pavimento: row.Pavimento,
-                      Unidade: row.Unidade,
-                      MinTemp: row['MIN TEMP'],
-                      MaxTemp: row['MAX TEMP'],
-                      PHFT_Sum: row.PHFT || 0,
-                      CargaTermica_Sum: row['CARGA TERM'] || 0,
-                      Count: 1,
-                    };
-                  } else {
-                    summaryModelRealMap[key].MinTemp = Math.min(
-                      summaryModelRealMap[key].MinTemp,
-                      row['MIN TEMP'],
-                    );
-                    summaryModelRealMap[key].MaxTemp = Math.max(
-                      summaryModelRealMap[key].MaxTemp,
-                      row['MAX TEMP'],
-                    );
-                    summaryModelRealMap[key].PHFT_Sum += row.PHFT || 0;
-                    summaryModelRealMap[key].CargaTermica_Sum +=
-                      row['CARGA TERM'] || 0;
-                    summaryModelRealMap[key].Count += 1;
-                  }
-                }
-              });
-
-              for (const key in summaryModelRealMap) {
-                const entry = summaryModelRealMap[key];
-                summaryModelRealData.push({
-                  Pavimento: entry.Pavimento,
-                  Unidade: entry.Unidade,
-                  MinTemp: entry.MinTemp,
-                  MaxTemp: entry.MaxTemp,
-                  PHFT_Avg: entry.PHFT_Sum / entry.Count,
-                  CargaTermica_Sum: entry.CargaTermica_Sum,
-                });
-              }
-
-              // Criar a nova aba "Análise de Nível Mínimo"
-              const nivelMinimoData = createNivelMinimoData(
-                summaryData,
-                summaryModelRealData,
-              );
-
-              // Criar planilhas para os dados de saída e resumo do Modelo Real
-              const modelRealOutputWorksheet = XLSX.utils.json_to_sheet(
-                cleanOutputModelRealData,
-              );
-              const modelRealSummaryWorksheet =
-                XLSX.utils.json_to_sheet(summaryModelRealData);
-              const nivelMinimoWorksheet =
-                XLSX.utils.json_to_sheet(nivelMinimoData);
-
-              // Adicionar ambas as abas ao novo workbook
-              XLSX.utils.book_append_sheet(
-                newWorkbook,
-                modelRealOutputWorksheet,
-                'Modelo Real Output',
-              );
-              XLSX.utils.book_append_sheet(
-                newWorkbook,
-                modelRealSummaryWorksheet,
-                'Modelo Real Summary',
-              );
-              XLSX.utils.book_append_sheet(
-                newWorkbook,
-                nivelMinimoWorksheet,
-                'Análise de Nível Mínimo',
-              );
-
-              // Criar e escrever a nova planilha em um array
-              const modelRealOutput = XLSX.write(newWorkbook, {
-                type: 'array',
-              });
-              setOutputFile(
-                new Blob([modelRealOutput], {
-                  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                }),
-              );
-            }
+            resolve(jsonData); // Retorna os dados convertidos
           } catch (error) {
-            console.error('Erro ao processar arquivo de modelo:', error);
+            reject(error); // Lida com erros
           }
         };
 
-        // Ler o arquivo Model
-        reader.readAsArrayBuffer(selectedModelFile);
-      } catch (error) {
-        console.error('Erro ao gerar arquivo de saída:', error);
-      } finally {
-        setIsLoading(false); // Finaliza o spinner de carregamento
+        reader.onerror = () => reject(new Error('Erro ao ler o arquivo Excel'));
+        reader.readAsArrayBuffer(file); // Lê o arquivo como um ArrayBuffer
+      });
+    };
+
+    // Função para processar Carga Térmica com otimização
+    const processCargaTermica = async (
+      tipoAmbiente: string,
+      codigo: string,
+      filteredData: any[],
+      cargaTermicaCache: Map<string, any>, // Cache para evitar processamento repetido
+    ) => {
+      let carga = 0;
+      let cargaResfrValue = 0;
+
+      if (includeCargaTermica && additionalFile) {
+        const cacheKey = `${codigo}_${tipoAmbiente}`;
+        // Verificar se o resultado já está no cache
+        if (cargaTermicaCache.has(cacheKey)) {
+          const cachedResult = cargaTermicaCache.get(cacheKey);
+          return {
+            carga: cachedResult.carga,
+            cargaResfrValue: cachedResult.cargaResfrValue,
+          };
+        }
+
+        try {
+          const cargaData = await parseFile(additionalFile);
+          const cargaFilteredData = filterData(cargaData, tipoAmbiente);
+          const numericSelectedInterval = selectedInterval;
+
+          const cargaTermicaResult = await cargaTerm({
+            cargaFilteredData,
+            filteredData,
+            codigo: `${codigo} IDEAL LOADS AIR SYSTEM:Zone Ideal Loads Zone Total Cooling Energy [J](Hourly)`,
+            codigoSolo: codigo,
+            thresholdVar: numericSelectedInterval,
+          });
+
+          cargaResfrValue = calculateCargaResfr(
+            cargaFilteredData,
+            codigo,
+            numericSelectedInterval,
+          );
+          carga = cargaTermicaResult;
+
+          // Armazenar o resultado no cache
+          cargaTermicaCache.set(cacheKey, { carga, cargaResfrValue });
+        } catch (error) {
+          console.error('Erro ao processar arquivo de Carga Térmica:', error);
+        }
       }
-    }
+
+      return { carga, cargaResfrValue };
+    };
+
+    // Função para processar cada linha do modelo com cache otimizado
+    const processModelRow = async (
+      modelRow: ModelRow,
+      vnData: any[],
+      selectedInterval: number,
+      includeCargaTermica: boolean,
+      additionalFile: File | null,
+      cargaTermicaCache: Map<string, any>, // Cache para carga térmica
+    ) => {
+      const tipoAmbiente = modelRow['Tipo de ambiente'];
+      const codigo = modelRow['Código'];
+
+      if (!codigo || !tipoAmbiente) {
+        console.warn(
+          'Skipping row due to missing Código or Tipo de ambiente:',
+          modelRow,
+        );
+        return null;
+      }
+
+      const filteredData = filterData(vnData, tipoAmbiente);
+      const minTemp = getMinTemperature(
+        filteredData,
+        `${codigo}:Zone Operative Temperature [C](Hourly)`,
+      );
+      const maxTemp = getMaxTemperature(
+        filteredData,
+        `${codigo}:Zone Operative Temperature [C](Hourly)`,
+      );
+      const nhftValue = getNhftValue(
+        filteredData,
+        `${codigo}:Zone Operative Temperature [C](Hourly)`,
+        selectedInterval,
+      );
+
+      const phftValue =
+        tipoAmbiente === 'Quarto'
+          ? (nhftValue / 3650) * 100
+          : tipoAmbiente === 'Misto'
+            ? (nhftValue / 6570) * 100
+            : (nhftValue / 2920) * 100;
+
+      const { carga, cargaResfrValue } = await processCargaTermica(
+        tipoAmbiente,
+        codigo,
+        filteredData,
+        cargaTermicaCache,
+      );
+
+      return {
+        Pavimento: modelRow['Pavimento'],
+        Unidade: modelRow['Unidade'],
+        Código: codigo,
+        Nome: modelRow['Nome'],
+        'Tipo de ambiente': tipoAmbiente,
+        'MIN TEMP': minTemp,
+        'MAX TEMP': maxTemp,
+        NHFT: nhftValue,
+        PHFT: phftValue,
+        'CARGA RESF': includeCargaTermica ? carga - cargaResfrValue : undefined,
+        'CARGA AQUE': includeCargaTermica ? cargaResfrValue : undefined,
+        'CARGA TERM': includeCargaTermica ? carga : undefined,
+      };
+    };
+
+    // Função para criar dados de resumo
+    const createSummaryData = (cleanOutputData: any[]) => {
+      const summaryMap: Record<string, any> = {};
+      cleanOutputData.forEach((row) => {
+        if (row) {
+          const key = `${row.Pavimento}_${row.Unidade}`;
+          if (!summaryMap[key]) {
+            summaryMap[key] = {
+              Pavimento: row.Pavimento,
+              Unidade: row.Unidade,
+              MinTemp: row['MIN TEMP'],
+              MaxTemp: row['MAX TEMP'],
+              PHFT_Sum: row['PHFT'] || 0,
+              CargaTermica_Sum: row['CARGA TERM'] || 0,
+              Count: 1,
+            };
+          } else {
+            summaryMap[key].MinTemp = Math.min(
+              summaryMap[key].MinTemp,
+              row['MIN TEMP'],
+            );
+            summaryMap[key].MaxTemp = Math.max(
+              summaryMap[key].MaxTemp,
+              row['MAX TEMP'],
+            );
+            summaryMap[key].PHFT_Sum += row['PHFT'] || 0;
+            summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
+            summaryMap[key].Count += 1;
+          }
+        }
+      });
+
+      return Object.values(summaryMap).map((entry) => ({
+        Pavimento: entry.Pavimento,
+        Unidade: entry.Unidade,
+        MinTemp: entry.MinTemp,
+        MaxTemp: entry.MaxTemp,
+        PHFT_Avg: entry.PHFT_Sum / entry.Count,
+        CargaTermica_Sum: entry.CargaTermica_Sum,
+      }));
+    };
+
+    const generateWorkbook = async (sheets: {
+      [sheetName: string]: any[];
+    }): Promise<Uint8Array> => {
+      const workbook = new ExcelJS.Workbook();
+
+      // Mapeamento de colunas para cores
+      const colorMapping: { [key: string]: string } = {
+        'MIN TEMP': 'FFFFC000', // Cor para MIN TEMP
+        MaxTemp: 'a52a2a',
+        MinTemp: 'FFFFC000',
+        'MAX TEMP': 'a52a2a', // Cor para MAX TEMP
+        'Temp Max REF UH': 'a52a2a',
+        'Temp Max REAL UH': 'a52a2a',
+        NHFT: 'FF00B0F0', // Cor para NHFT
+        PHFT: '008000', // Cor para PHFT
+        PHFT_Avg: '008000',
+        'PHFT REF UH': '008000',
+        'PHFT REAL UH': '008000',
+      };
+
+      for (const [sheetName, data] of Object.entries(sheets)) {
+        const worksheet = workbook.addWorksheet(sheetName);
+
+        // Adiciona cabeçalho
+        const headerCells = Object.keys(data[0]);
+        const headerRow = worksheet.addRow(headerCells);
+
+        // Formatação do cabeçalho
+        headerRow.eachCell((cell, colNumber) => {
+          const columnName = cell.value as string;
+
+          // Define cor personalizada se estiver no mapeamento
+          const color = colorMapping[columnName] || 'FF4F81BD'; // Azul por padrão
+
+          cell.font = {
+            name: 'Arial',
+            size: 12,
+            bold: true,
+            color: { argb: 'FFFFFFFF' }, // Cor da fonte (branca)
+          };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: color }, // Cor personalizada ou padrão
+          };
+          cell.alignment = { horizontal: 'center' }; // Centralizar texto no cabeçalho
+          worksheet.getColumn(colNumber).width = 20; // Aumenta a largura da célula
+        });
+
+        // Adiciona os dados
+        data.forEach((row) => {
+          const newRow = worksheet.addRow(Object.values(row));
+
+          // Formatar as células conforme o nome das colunas
+          Object.keys(row).forEach((key, index) => {
+            const cell = newRow.getCell(index + 1); // +1 para ajustar ao índice da linha
+            const color = colorMapping[key] || null;
+
+            if (color) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: color }, // Cor personalizada para a célula
+              };
+            }
+          });
+
+          // Formatar as células de status, se a coluna 'Status' existir
+          if (Object.prototype.hasOwnProperty.call(row, 'Status')) {
+            const statusCell = newRow.getCell(
+              headerCells.indexOf('Status') + 1,
+            );
+            statusCell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: {
+                argb: row.Status === 'APROVADO' ? 'FF00FF00' : 'FFFF0000', // Verde para APROVADO, vermelho para REPROVADO
+              },
+            };
+          }
+        });
+      }
+
+      // Gera o arquivo Excel como Buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      // Converte Blob para Uint8Array
+      const uint8Array = await blobToUint8Array(blob);
+      return uint8Array;
+    };
+
+    const blobToUint8Array = (blob: Blob): Promise<Uint8Array> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function () {
+          const arrayBuffer = reader.result as ArrayBuffer;
+          resolve(new Uint8Array(arrayBuffer));
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+      });
+    };
+
+    // Função para lidar com o processamento com cache de carga térmica
+    const handleProcess = async () => {
+      if (
+        !selectedVNFile ||
+        !selectedModelFile ||
+        (includeModeloReal && !selectedVNFile2)
+      ) {
+        console.error('Arquivos necessários não foram selecionados.');
+        return;
+      }
+
+      setIsLoading(true);
+      console.log('Iniciando o processamento dos arquivos...');
+      try {
+        const vnData = await parseFile(selectedVNFile);
+        const modelData = await parseModelExcel(selectedModelFile);
+
+        // Inicializar o cache de Carga Térmica
+        const cargaTermicaCache = new Map<string, any>();
+
+        const outputData = await Promise.all(
+          modelData.map((modelRow) =>
+            processModelRow(
+              modelRow,
+              vnData,
+              selectedInterval,
+              includeCargaTermica,
+              additionalFile,
+              cargaTermicaCache, // Passar o cache
+            ),
+          ),
+        );
+
+        const cleanOutputData = outputData.filter((row) => row !== null);
+        const summaryData = createSummaryData(cleanOutputData);
+
+        const sheets: { [sheetName: string]: any[] } = {
+          Output: cleanOutputData,
+          Summary: summaryData,
+        };
+
+        if (includeModeloReal && selectedVNFile2) {
+          const vnData2 = await parseFile(selectedVNFile2);
+
+          const outputModelRealData = await Promise.all(
+            modelData.map((modelRow) =>
+              processModelRow(
+                modelRow,
+                vnData2,
+                selectedInterval,
+                includeCargaTermica,
+                additionalFile2,
+                cargaTermicaCache,
+              ),
+            ),
+          );
+
+          const cleanOutputModelRealData = outputModelRealData.filter(
+            (row) => row !== null,
+          );
+          const summaryModelRealData = createSummaryData(
+            cleanOutputModelRealData,
+          );
+
+          sheets['Modelo Real Output'] = cleanOutputModelRealData;
+          sheets['Modelo Real Summary'] = summaryModelRealData;
+
+          const nivelMinimoData = createNivelMinimoData(
+            summaryData,
+            summaryModelRealData,
+          );
+          sheets['Análise de Nível Mínimo'] = nivelMinimoData;
+        }
+
+        const workbookArrayBuffer = await generateWorkbook(sheets);
+
+        setOutputFile(
+          new Blob([workbookArrayBuffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          }),
+        );
+        console.log('Arquivo Excel gerado com sucesso!');
+      } catch (error) {
+        console.error('Erro ao processar os arquivos:', error);
+      } finally {
+        setIsLoading(false);
+        console.log('Processamento concluído.');
+      }
+    };
+
+    // Chamar a função de processamento
+    handleProcess();
   };
 
   return (

@@ -11,6 +11,7 @@
     "@types/node": "^16.18.104",
     "axios": "^1.7.2",
     "d3-dsv": "^3.0.1",
+    "exceljs": "^4.4.0",
     "lodash": "^4.17.21",
     "pandas-js": "^0.2.4",
     "papaparse": "^5.4.1",
