@@ -192,8 +192,6 @@ const FileUpload: React.FC = () => {
   ): NivelMinimoData[] => {
     const nivelMinimoMap: { [key: string]: NivelMinimoData } = {};
 
-    console.log('Sumário aqui?', summaryData);
-
     // Preencher o mapa com dados das unidades habitacionais do modelo ref
     summaryData.forEach((row) => {
       const pavimento = row.Pavimento;
@@ -252,15 +250,15 @@ const FileUpload: React.FC = () => {
         item['Status'] =
           (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 2) ||
           (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-            ? 'REPROVADO'
-            : 'APROVADO';
+            ? 'NÃO ATENDIDO'
+            : 'ATENDIDO';
       } else {
         // Para outros tipos de pavimento
         item['Status'] =
           (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 1) ||
           (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-            ? 'REPROVADO'
-            : 'APROVADO';
+            ? 'NÃO ATENDIDO'
+            : 'ATENDIDO';
       }
     });
 
@@ -576,7 +574,7 @@ const FileUpload: React.FC = () => {
               type: 'pattern',
               pattern: 'solid',
               fgColor: {
-                argb: row.Status === 'APROVADO' ? 'FF00FF00' : 'FFFF0000', // Verde para APROVADO, vermelho para REPROVADO
+                argb: row.Status === 'ATENDIDO' ? 'FF00FF00' : 'FFFF0000', // Verde para APROVADO, vermelho para REPROVADO
               },
             };
           }
@@ -705,13 +703,13 @@ const FileUpload: React.FC = () => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
+        alignItems: 'center', // Centraliza o conteúdo horizontalmente
         justifyContent: 'center',
         height: '100vh',
       }}
     >
       <h1 style={{ marginBottom: '20px' }}>Análise Térmica</h1>
-
+  
       <div style={{ marginTop: '20px' }}>
         <ToastContainer
           position="top-right"
@@ -731,18 +729,20 @@ const FileUpload: React.FC = () => {
           Incluir Modelo Real
         </label>
       </div>
-
+  
+      {/* Agrupamento dos dropzones */}
       <div
         style={{
           display: 'flex',
-          flexDirection: 'row',
-          gap: '40px',
+          flexDirection: 'column',
+          gap: '20px',
           marginTop: '20px',
-          justifyContent: includeModeloReal ? 'center' : 'flex-start', // Center if includeModeloReal is true
+          alignItems: 'center', // Centraliza todos os itens no centro
         }}
       >
-        {/* Coluna original (dropzones empilhados) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Dropzones lado a lado */}
+        <div style={{ display: 'flex', gap: '40px' }}>
+          {/* Dropzone do VN REF */}
           <FileDropZone
             label="Arquivo de VN do Modelo REF"
             onDrop={handleDropVN}
@@ -750,32 +750,8 @@ const FileUpload: React.FC = () => {
             selectedFile={selectedVNFile}
             onDelete={handleDeleteVNFile}
           />
-          <FileDropZone
-            label="Arquivo de Modelo do Modelo REF"
-            onDrop={handleDropModel}
-            selectedFile={selectedModelFile}
-            onDelete={handleDeleteModelFile}
-          />
-          {includeCargaTermica && (
-            <FileDropZone
-              label="Arquivo de Carga Térmica do Modelo Ref"
-              onDrop={handleDropCargaTermica}
-              acceptMultipleFileTypes={true}
-              selectedFile={additionalFile}
-              onDelete={handleDeleteAdditionalFile}
-            />
-          )}
-        </div>
-
-        {/* Coluna do modelo real (dropzones empilhados) */}
-        {includeModeloReal && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px',
-            }}
-          >
+          {/* Dropzone do VN Modelo Real, se estiver ativado */}
+          {includeModeloReal && (
             <FileDropZone
               label="Arquivo de VN do Modelo Real"
               onDrop={handleDropVN2}
@@ -783,7 +759,28 @@ const FileUpload: React.FC = () => {
               selectedFile={selectedVNFile2}
               onDelete={handleDeleteVNFile2}
             />
-            {includeCargaTermica && (
+          )}
+        </div>
+  
+        {/* Centralizar o dropzone do Modelo REF abaixo dos dois anteriores */}
+        <FileDropZone
+          label="Arquivo de Modelo do Modelo REF"
+          onDrop={handleDropModel}
+          selectedFile={selectedModelFile}
+          onDelete={handleDeleteModelFile}
+        />
+  
+        {/* Condicional para Carga Térmica */}
+        {includeCargaTermica && (
+          <div style={{ display: 'flex', gap: '40px' }}>
+            <FileDropZone
+              label="Arquivo de Carga Térmica do Modelo REF"
+              onDrop={handleDropCargaTermica}
+              acceptMultipleFileTypes={true}
+              selectedFile={additionalFile}
+              onDelete={handleDeleteAdditionalFile}
+            />
+            {includeModeloReal && (
               <FileDropZone
                 label="Arquivo de Carga Térmica do Modelo Real"
                 onDrop={handleDropCargaTermica2}
@@ -795,7 +792,7 @@ const FileUpload: React.FC = () => {
           </div>
         )}
       </div>
-
+  
       <div style={{ marginTop: '20px' }}>
         <label>
           Intervalo:
@@ -811,7 +808,7 @@ const FileUpload: React.FC = () => {
           </select>
         </label>
       </div>
-
+  
       <div style={{ marginTop: '20px' }}>
         <label>
           <input
@@ -822,7 +819,7 @@ const FileUpload: React.FC = () => {
           Incluir Carga Térmica
         </label>
       </div>
-
+  
       <FileActions
         onGenerate={generateOutputFile}
         canGenerate={canGenerate}
