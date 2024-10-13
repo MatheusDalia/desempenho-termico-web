@@ -458,75 +458,77 @@ const FileUpload: React.FC = () => {
 
     // Função para criar dados de resumo
     // Função para criar dados de resumo com cálculo de PHFT Mínimo
-const createSummaryData = (cleanOutputData: any[]) => {
-  const summaryMap: Record<string, any> = {};
-  
-  cleanOutputData.forEach((row) => {
-    if (row) {
-      const key = `${row.Pavimento}_${row.Unidade}`;
-      if (!summaryMap[key]) {
-        summaryMap[key] = {
-          Pavimento: row.Pavimento,
-          Unidade: row.Unidade,
-          MinTemp: row['MIN TEMP'],
-          MaxTemp: row['MAX TEMP'],
-          PHFT_Sum: row['PHFT'] || 0,
-          CargaTermica_Sum: row['CARGA TERM'] || 0,
-          Count: 1,
-        };
-      } else {
-        summaryMap[key].MinTemp = Math.min(
-          summaryMap[key].MinTemp,
-          row['MIN TEMP']
-        );
-        summaryMap[key].MaxTemp = Math.max(
-          summaryMap[key].MaxTemp,
-          row['MAX TEMP']
-        );
-        summaryMap[key].PHFT_Sum += row['PHFT'] || 0;
-        summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
-        summaryMap[key].Count += 1;
-      }
-    }
-  });
+    const createSummaryData = (cleanOutputData: any[]) => {
+      const summaryMap: Record<string, any> = {};
 
-  return Object.values(summaryMap).map((entry) => {
-    const PHFT_Avg = entry.PHFT_Sum / entry.Count;
-    let PHFT_Min = 0; // Inicializa como 0 para o caso PHFT_Avg > 70
-
-    if (PHFT_Avg < 70) {
-      // Lógica para pavimentos sem variedade
-      const pavimentos = new Set(
-        cleanOutputData.map((row) => row.Pavimento.toLowerCase())
-      );
-      
-      if (pavimentos.size === 1) {
-        PHFT_Min = 45 - 0.58 * PHFT_Avg;
-      } else {
-        // Lógica para pavimentos com variedade
-        const pavimentoLower = entry.Pavimento.toLowerCase();
-        if (pavimentoLower.includes('cobertura')) {
-          PHFT_Min = 18 - 0.18 * PHFT_Avg;
-        } else if (pavimentoLower.includes('térreo') || pavimentoLower.includes('terreo')) {
-          PHFT_Min = 22 - 0.21 * PHFT_Avg;
-        } else {
-          PHFT_Min = 28 - 0.27 * PHFT_Avg;
+      cleanOutputData.forEach((row) => {
+        if (row) {
+          const key = `${row.Pavimento}_${row.Unidade}`;
+          if (!summaryMap[key]) {
+            summaryMap[key] = {
+              Pavimento: row.Pavimento,
+              Unidade: row.Unidade,
+              MinTemp: row['MIN TEMP'],
+              MaxTemp: row['MAX TEMP'],
+              PHFT_Sum: row['PHFT'] || 0,
+              CargaTermica_Sum: row['CARGA TERM'] || 0,
+              Count: 1,
+            };
+          } else {
+            summaryMap[key].MinTemp = Math.min(
+              summaryMap[key].MinTemp,
+              row['MIN TEMP'],
+            );
+            summaryMap[key].MaxTemp = Math.max(
+              summaryMap[key].MaxTemp,
+              row['MAX TEMP'],
+            );
+            summaryMap[key].PHFT_Sum += row['PHFT'] || 0;
+            summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
+            summaryMap[key].Count += 1;
+          }
         }
-      }
-    }
+      });
 
-    return {
-      Pavimento: entry.Pavimento,
-      Unidade: entry.Unidade,
-      MinTemp: entry.MinTemp,
-      MaxTemp: entry.MaxTemp,
-      PHFT_Avg: PHFT_Avg,
-      PHFT_Min: PHFT_Min,
-      CargaTermica_Sum: entry.CargaTermica_Sum,
+      return Object.values(summaryMap).map((entry) => {
+        const PHFT_Avg = entry.PHFT_Sum / entry.Count;
+        let PHFT_Min = 0; // Inicializa como 0 para o caso PHFT_Avg > 70
+
+        if (PHFT_Avg < 70) {
+          // Lógica para pavimentos sem variedade
+          const pavimentos = new Set(
+            cleanOutputData.map((row) => row.Pavimento.toLowerCase()),
+          );
+
+          if (pavimentos.size === 1) {
+            PHFT_Min = 45 - 0.58 * PHFT_Avg;
+          } else {
+            // Lógica para pavimentos com variedade
+            const pavimentoLower = entry.Pavimento.toLowerCase();
+            if (pavimentoLower.includes('cobertura')) {
+              PHFT_Min = 18 - 0.18 * PHFT_Avg;
+            } else if (
+              pavimentoLower.includes('térreo') ||
+              pavimentoLower.includes('terreo')
+            ) {
+              PHFT_Min = 22 - 0.21 * PHFT_Avg;
+            } else {
+              PHFT_Min = 28 - 0.27 * PHFT_Avg;
+            }
+          }
+        }
+
+        return {
+          Pavimento: entry.Pavimento,
+          Unidade: entry.Unidade,
+          MinTemp: entry.MinTemp,
+          MaxTemp: entry.MaxTemp,
+          PHFT_Avg: PHFT_Avg,
+          PHFT_Min: PHFT_Min,
+          CargaTermica_Sum: entry.CargaTermica_Sum,
+        };
+      });
     };
-  });
-};
-
 
     const generateWorkbook = async (sheets: {
       [sheetName: string]: any[];
@@ -739,7 +741,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
       }}
     >
       <h1 style={{ marginBottom: '20px' }}>Análise Térmica</h1>
-  
+
       <div style={{ marginTop: '20px' }}>
         <ToastContainer
           position="top-right"
@@ -759,7 +761,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
           Incluir Modelo Real
         </label>
       </div>
-  
+
       {/* Agrupamento dos dropzones */}
       <div
         style={{
@@ -791,7 +793,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
             />
           )}
         </div>
-  
+
         {/* Centralizar o dropzone do Modelo REF abaixo dos dois anteriores */}
         <FileDropZone
           label="Arquivo de Modelo do Modelo REF"
@@ -799,7 +801,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
           selectedFile={selectedModelFile}
           onDelete={handleDeleteModelFile}
         />
-  
+
         {/* Condicional para Carga Térmica */}
         {includeCargaTermica && (
           <div style={{ display: 'flex', gap: '40px' }}>
@@ -822,7 +824,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
           </div>
         )}
       </div>
-  
+
       <div style={{ marginTop: '20px' }}>
         <label>
           Intervalo:
@@ -838,7 +840,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
           </select>
         </label>
       </div>
-  
+
       <div style={{ marginTop: '20px' }}>
         <label>
           <input
@@ -849,7 +851,7 @@ const createSummaryData = (cleanOutputData: any[]) => {
           Incluir Carga Térmica
         </label>
       </div>
-  
+
       <FileActions
         onGenerate={generateOutputFile}
         canGenerate={canGenerate}
