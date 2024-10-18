@@ -20,6 +20,8 @@ export function cargaTerm({
     return renamedRow;
   });
 
+  console.log('Carga Antes:', cargaFilteredData);
+
   cargaFilteredData = cargaFilteredData.map((row: any, index: number) => {
     return { ...row, ...filteredDataRenamed[index] };
   });
@@ -29,6 +31,7 @@ export function cargaTerm({
   const temperatureColumnKey = `${codigoSolo}:Zone Operative Temperature [C](Hourly)_filtered`;
 
   let filteredRows;
+  console.log('Carca depois:', cargaFilteredData);
   if (tempThreshold === 26) {
     const filteredRows1 = cargaFilteredData.filter(
       (row: { [x: string]: number }) => row[temperatureColumnKey] < 18,
@@ -39,7 +42,8 @@ export function cargaTerm({
     filteredRows = [...filteredRows1, ...filteredRows2];
   } else {
     filteredRows = cargaFilteredData.filter(
-      (row: { [x: string]: number }) => row[temperatureColumnKey] > 26,
+      (row: { [x: string]: number }) =>
+        row[temperatureColumnKey] > tempThreshold,
     );
   }
 

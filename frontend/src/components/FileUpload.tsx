@@ -401,9 +401,10 @@ const FileUpload: React.FC = () => {
       cargaTermicaCache: Map<string, any>, // Cache para carga térmica
     ) => {
       const tipoAmbiente = modelRow['Tipo de ambiente'];
+      const areaUh = modelRow['Area'];
       const codigo = modelRow['Código'];
 
-      if (!codigo || !tipoAmbiente) {
+      if (!codigo || !tipoAmbiente || !areaUh) {
         console.warn(
           'Skipping row due to missing Código or Tipo de ambiente:',
           modelRow,
@@ -446,6 +447,7 @@ const FileUpload: React.FC = () => {
         Código: codigo,
         Nome: modelRow['Nome'],
         'Tipo de ambiente': tipoAmbiente,
+        Area: areaUh,
         'MIN TEMP': minTemp,
         'MAX TEMP': maxTemp,
         NHFT: nhftValue,
@@ -472,6 +474,7 @@ const FileUpload: React.FC = () => {
               MaxTemp: row['MAX TEMP'],
               PHFT_Sum: row['PHFT'] || 0,
               CargaTermica_Sum: row['CARGA TERM'] || 0,
+              Area: row['Area'],
               Count: 1,
             };
           } else {
@@ -485,6 +488,7 @@ const FileUpload: React.FC = () => {
             );
             summaryMap[key].PHFT_Sum += row['PHFT'] || 0;
             summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
+            summaryMap[key].Area += row['Area']; // Soma a área se já existir
             summaryMap[key].Count += 1;
           }
         }
@@ -493,9 +497,10 @@ const FileUpload: React.FC = () => {
       return Object.values(summaryMap).map((entry) => {
         const PHFT_Avg = entry.PHFT_Sum / entry.Count;
         let PHFT_Min = 0; // Inicializa como 0 para o caso PHFT_Avg > 70
+        let RedCgTTmin = 0; // Inicializa RedCgTTmin como 0
 
+        // Cálculo de PHFT_Min como antes
         if (PHFT_Avg < 70) {
-          // Lógica para pavimentos sem variedade
           const pavimentos = new Set(
             cleanOutputData.map((row) => row.Pavimento.toLowerCase()),
           );
@@ -503,7 +508,6 @@ const FileUpload: React.FC = () => {
           if (pavimentos.size === 1) {
             PHFT_Min = 45 - 0.58 * PHFT_Avg;
           } else {
-            // Lógica para pavimentos com variedade
             const pavimentoLower = entry.Pavimento.toLowerCase();
             if (pavimentoLower.includes('cobertura')) {
               PHFT_Min = 18 - 0.18 * PHFT_Avg;
@@ -518,6 +522,33 @@ const FileUpload: React.FC = () => {
           }
         }
 
+        // Lógica para calcular RedCgTTmin
+        if (PHFT_Avg >= 70) {  
+          const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area; // Ajustar para calcular a média por área
+
+          if (cargaTermicaPorArea < 100) {
+            if (entry.Count === 1) {
+              RedCgTTmin = 17; // Apenas um pavimento
+            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
+              RedCgTTmin = 15; // Pavimento térreo
+            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
+              RedCgTTmin = 15; // Pavimento cobertura
+            } else {
+              RedCgTTmin = 22; // Qualquer outro pavimento
+            }
+          } else {
+            if (entry.Count === 1) {
+              RedCgTTmin = 27; // Apenas um pavimento
+            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
+              RedCgTTmin = 20; // Pavimento térreo
+            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
+              RedCgTTmin = 20; // Pavimento cobertura
+            } else {
+              RedCgTTmin = 25; // Qualquer outro pavimento
+            }
+          }
+        }
+
         return {
           Pavimento: entry.Pavimento,
           Unidade: entry.Unidade,
@@ -526,6 +557,7 @@ const FileUpload: React.FC = () => {
           PHFT_Avg: PHFT_Avg,
           PHFT_Min: PHFT_Min,
           CargaTermica_Sum: entry.CargaTermica_Sum,
+          RedCgTTmin: RedCgTTmin, // Adiciona a nova coluna
         };
       });
     };
