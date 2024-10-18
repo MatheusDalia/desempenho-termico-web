@@ -284,7 +284,7 @@ const FileUpload: React.FC = () => {
         });
       });
     };
-
+    let areaColumnExists = false;
     // Função para parsear arquivos Excel usando FileReader e ExcelJS
     const parseModelExcel = (file: File): Promise<ModelRow[]> => {
       return new Promise((resolve, reject) => {
@@ -300,18 +300,26 @@ const FileUpload: React.FC = () => {
             const worksheet = workbook.worksheets[0]; // Obtém a primeira planilha
             const jsonData: ModelRow[] = [];
 
+            // Verifica se a primeira linha existe
+            const headerRow = worksheet.getRow(1);
+
+            if (headerRow && headerRow.values) {
+              // Verifica se `headerRow.values` é um array
+              if (Array.isArray(headerRow.values)) {
+                // Verifica se a coluna "Area" existe no cabeçalho (em um array esparso)
+                areaColumnExists = headerRow.values.includes('Area');
+              } else {
+                // Se `headerRow.values` for um objeto, converte os valores em um array e verifica
+                areaColumnExists = Object.values(headerRow.values).includes(
+                  'Area',
+                );
+              }
+            }
+
             // Converte cada linha da planilha para um objeto JSON
             worksheet.eachRow(
               { includeEmpty: true },
-              (
-                row: {
-                  eachCell: (
-                    arg0: { includeEmpty: boolean },
-                    arg1: (cell: any, colNumber: any) => void,
-                  ) => void;
-                },
-                rowNumber: number,
-              ) => {
+              (row: any, rowNumber: number) => {
                 if (rowNumber > 1) {
                   // Ignora o cabeçalho (primeira linha)
                   const rowData: ModelRow = {
@@ -319,11 +327,21 @@ const FileUpload: React.FC = () => {
                     Unidade: '',
                     Nome: '',
                   };
-                  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                    const columnName = worksheet.getRow(1).getCell(colNumber)
-                      .value as string; // Obtém o nome da coluna
-                    rowData[columnName] = cell.value; // Adiciona ao objeto com o nome da coluna
-                  });
+
+                  row.eachCell(
+                    { includeEmpty: true },
+                    (cell: any, colNumber: any) => {
+                      const columnName = headerRow.getCell(colNumber)
+                        ?.value as string; // Obtém o nome da coluna
+
+                      if (columnName === 'Area' && areaColumnExists) {
+                        rowData['Area'] = cell.value; // Só adiciona "Area" se ela existir
+                      } else {
+                        rowData[columnName] = cell.value; // Adiciona as outras colunas normalmente
+                      }
+                    },
+                  );
+
                   jsonData.push(rowData); // Adiciona a linha convertida ao array
                 }
               },
@@ -399,12 +417,13 @@ const FileUpload: React.FC = () => {
       includeCargaTermica: boolean,
       additionalFile: File | null,
       cargaTermicaCache: Map<string, any>, // Cache para carga térmica
+      areaColumnExists: boolean, // Passar a variável como argumento
     ) => {
       const tipoAmbiente = modelRow['Tipo de ambiente'];
-      const areaUh = modelRow['Area'];
+      const areaUh = areaColumnExists ? modelRow['Area'] : undefined; // Somente pega o valor se a coluna existir
       const codigo = modelRow['Código'];
 
-      if (!codigo || !tipoAmbiente || !areaUh) {
+      if (!codigo || !tipoAmbiente) {
         console.warn(
           'Skipping row due to missing Código or Tipo de ambiente:',
           modelRow,
@@ -447,7 +466,7 @@ const FileUpload: React.FC = () => {
         Código: codigo,
         Nome: modelRow['Nome'],
         'Tipo de ambiente': tipoAmbiente,
-        Area: areaUh,
+        ...(areaColumnExists && { Area: areaUh }), // Condicionalmente incluir a coluna "Area"
         'MIN TEMP': minTemp,
         'MAX TEMP': maxTemp,
         NHFT: nhftValue,
@@ -697,6 +716,7 @@ const FileUpload: React.FC = () => {
               includeCargaTermica,
               additionalFile,
               cargaTermicaCache, // Passar o cache
+              areaColumnExists,
             ),
           ),
         );
@@ -721,6 +741,7 @@ const FileUpload: React.FC = () => {
                 includeCargaTermica,
                 additionalFile2,
                 cargaTermicaCache,
+                areaColumnExists,
               ),
             ),
           );
