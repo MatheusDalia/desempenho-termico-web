@@ -523,7 +523,7 @@ const FileUpload: React.FC = () => {
         }
 
         // Lógica para calcular RedCgTTmin
-        if (PHFT_Avg >= 70) {  
+        if (PHFT_Avg >= 70) {
           const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area; // Ajustar para calcular a média por área
 
           if (cargaTermicaPorArea < 100) {
