@@ -192,6 +192,8 @@ const FileUpload: React.FC = () => {
   ): NivelMinimoData[] => {
     const nivelMinimoMap: { [key: string]: NivelMinimoData } = {};
 
+    console.log('All rows in summaryData:', summaryData);
+
     // Preencher o mapa com dados das unidades habitacionais do modelo ref
     summaryData.forEach((row) => {
       const pavimento = row.Pavimento;
@@ -263,6 +265,129 @@ const FileUpload: React.FC = () => {
     });
 
     return Object.values(nivelMinimoMap);
+  };
+
+  interface NivelIntermediarioData {
+    Pavimento: string;
+    Unidade: string;
+    PHFT_Min: number | null;
+    RedCgTTmin: number | null;
+    'PHFT REAL UH': number | null;
+    'PHFT REF UH': number | null;
+    'CargaTermica_Sum REF': number | null;
+    'CargaTermica_Sum REAL': number | null;
+    'Delta PHFT': number | null;
+    'Delta RedCttg': number | null;
+    Status: string;
+  }
+
+  const createNivelIntermediarioData = (
+    summaryData: any[],
+    summaryModelRealData: any[],
+  ): NivelIntermediarioData[] => {
+    const nivelIntermediarioMap: { [key: string]: NivelIntermediarioData } = {};
+
+    // Variables to store the maximum values
+    let maxPhftRefUh = -Infinity;
+    let maxPhftRealUh = -Infinity;
+    let maxDeltaPhft = -Infinity;
+    let maxDeltaRedCttg = -Infinity;
+
+    // Preencher o mapa com dados das unidades habitacionais do modelo ref
+    summaryData.forEach((row) => {
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade;
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+
+      if (!nivelIntermediarioMap[key]) {
+        nivelIntermediarioMap[key] = {
+          Pavimento: pavimento,
+          Unidade: unidade,
+          PHFT_Min: row['PHFT_Min'] || null,
+          RedCgTTmin: row['RedCgTTmin'] || null,
+          'PHFT REF UH': row['PHFT_Avg'] || null,
+          'PHFT REAL UH': null, // Para ser preenchido depois
+          'CargaTermica_Sum REF': row['CargaTermica_Sum'] || null,
+          'CargaTermica_Sum REAL': null, // Para ser preenchido depois
+          'Delta PHFT': null, // Será calculado depois
+          'Delta RedCttg': null, // Será calculado depois
+          Status: '',
+        };
+
+        // Check for the max PHFT REF UH
+        if (row['PHFT REF UH'] && row['PHFT REF UH'] > maxPhftRefUh) {
+          maxPhftRefUh = row['PHFT REF UH'];
+        }
+      }
+    });
+
+    console.log('Max PHFT REF UH:', maxPhftRefUh);
+
+    // Preencher os dados do modelo real
+    summaryModelRealData.forEach((row) => {
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade;
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+
+      if (nivelIntermediarioMap[key]) {
+        // Preencher os valores reais
+        nivelIntermediarioMap[key]['PHFT REAL UH'] = row['PHFT_Avg'] || null;
+        nivelIntermediarioMap[key]['CargaTermica_Sum REAL'] =
+          row['CargaTermica_Sum'] || null;
+
+        // Calcular os deltas
+        const deltaPhft =
+          (nivelIntermediarioMap[key]['PHFT REAL UH'] || 0) -
+          (nivelIntermediarioMap[key]['PHFT REF UH'] || 0);
+        const deltaRedCttg =
+          (nivelIntermediarioMap[key]['CargaTermica_Sum REAL'] || 0) -
+          (nivelIntermediarioMap[key]['CargaTermica_Sum REF'] || 0);
+
+        nivelIntermediarioMap[key]['Delta PHFT'] = deltaPhft;
+        nivelIntermediarioMap[key]['Delta RedCttg'] = deltaRedCttg;
+
+        // Check for the max PHFT REAL UH
+        if (row['PHFT REAL UH'] && row['PHFT REAL UH'] > maxPhftRealUh) {
+          maxPhftRealUh = row['PHFT REAL UH'];
+        }
+
+        // Check for the max Delta PHFT
+        if (deltaPhft > maxDeltaPhft) {
+          maxDeltaPhft = deltaPhft;
+        }
+
+        // Check for the max Delta RedCttg
+        if (deltaRedCttg !== null && deltaRedCttg > maxDeltaRedCttg) {
+          maxDeltaRedCttg = deltaRedCttg;
+        }
+      }
+    });
+
+    console.log('Max PHFT REAL UH:', maxPhftRealUh);
+    console.log('Max Delta PHFT:', maxDeltaPhft);
+    console.log('Max Delta RedCttg:', maxDeltaRedCttg);
+
+    // Verificar status após todos os valores serem preenchidos
+    Object.values(nivelIntermediarioMap).forEach((item) => {
+      const {
+        PHFT_Min: phftMin,
+        RedCgTTmin: redCttgMin,
+        'Delta PHFT': deltaPhft,
+        'Delta RedCttg': deltaRedCttg,
+      } = item;
+
+      // Verifica se as condições são atendidas
+      const phftConditionMet = deltaPhft !== null && deltaPhft > (phftMin || 0);
+      const redCttgConditionMet =
+        deltaRedCttg !== null &&
+        redCttgMin !== null &&
+        deltaRedCttg > redCttgMin;
+
+      item['Status'] =
+        phftConditionMet || redCttgConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
+    });
+
+    return Object.values(nivelIntermediarioMap);
   };
 
   interface ModelRow {
@@ -761,6 +886,13 @@ const FileUpload: React.FC = () => {
             summaryModelRealData,
           );
           sheets['Análise de Nível Mínimo'] = nivelMinimoData;
+          if (includeCargaTermica) {
+            const nivelIntermediarioData = createNivelIntermediarioData(
+              summaryData,
+              summaryModelRealData,
+            );
+            sheets['Análise de Nível Intermediario'] = nivelIntermediarioData;
+          }
         }
 
         const workbookArrayBuffer = await generateWorkbook(sheets);
