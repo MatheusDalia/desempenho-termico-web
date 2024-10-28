@@ -205,8 +205,8 @@ const FileUpload: React.FC = () => {
           Pavimento: pavimento,
           'Unidades Habitacionais': unidade,
           'Temp Max REF UH': row['MaxTemp'],
-          'PHFT REF UH': row['PHFT_Avg'],
           'Temp Max REAL UH': null, // Para ser preenchido depois
+          'PHFT REF UH': row['PHFT_Avg'],
           'PHFT REAL UH': null, // Para ser preenchido depois
           Status: '',
         };
@@ -271,13 +271,9 @@ const FileUpload: React.FC = () => {
     Pavimento: string;
     Unidade: string;
     PHFT_Min: number | null;
-    RedCgTTmin: number | null;
-    'PHFT REAL UH': number | null;
-    'PHFT REF UH': number | null;
-    'CargaTermica_Sum REF': number | null;
-    'CargaTermica_Sum REAL': number | null;
     'Delta PHFT': number | null;
-    'Delta RedCttg': number | null;
+    RedCgTTmin: number | null;
+    RedCttg: number | null;
     Status: string;
   }
 
@@ -287,226 +283,107 @@ const FileUpload: React.FC = () => {
   ): NivelIntermediarioData[] => {
     const nivelIntermediarioMap: { [key: string]: NivelIntermediarioData } = {};
 
-    // Variables to store the maximum values
-    let maxPhftRefUh = -Infinity;
-    let maxPhftRealUh = -Infinity;
-    let maxDeltaPhft = -Infinity;
-    let maxDeltaRedCttg = -Infinity;
-
-    // Preencher o mapa com dados das unidades habitacionais do modelo ref
+    // Preencher o mapa com dados do modelo de referência
     summaryData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+      const key = `${row.Pavimento}-${row.Unidade}`;
 
       if (!nivelIntermediarioMap[key]) {
         nivelIntermediarioMap[key] = {
-          Pavimento: pavimento,
-          Unidade: unidade,
+          Pavimento: row.Pavimento,
+          Unidade: row.Unidade,
           PHFT_Min: row['PHFT_Min'] || null,
           RedCgTTmin: row['RedCgTTmin'] || null,
-          'PHFT REF UH': row['PHFT_Avg'] || null,
-          'PHFT REAL UH': null, // Para ser preenchido depois
-          'CargaTermica_Sum REF': row['CargaTermica_Sum'] || null,
-          'CargaTermica_Sum REAL': null, // Para ser preenchido depois
-          'Delta PHFT': null, // Será calculado depois
-          'Delta RedCttg': null, // Será calculado depois
+          'Delta PHFT': null,
+          RedCttg: row['CargaTermica_Sum'] || null,
           Status: '',
         };
-
-        // Check for the max PHFT REF UH
-        if (row['PHFT REF UH'] && row['PHFT REF UH'] > maxPhftRefUh) {
-          maxPhftRefUh = row['PHFT REF UH'];
-        }
       }
     });
 
-    console.log('Max PHFT REF UH:', maxPhftRefUh);
-
-    // Preencher os dados do modelo real
+    // Preencher dados do modelo real e calcular deltas
     summaryModelRealData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+      const key = `${row.Pavimento}-${row.Unidade}`;
+      const refData = nivelIntermediarioMap[key];
 
-      if (nivelIntermediarioMap[key]) {
-        // Preencher os valores reais
-        nivelIntermediarioMap[key]['PHFT REAL UH'] = row['PHFT_Avg'] || null;
-        nivelIntermediarioMap[key]['CargaTermica_Sum REAL'] =
-          row['CargaTermica_Sum'] || null;
-
+      if (refData) {
         // Calcular os deltas
-        const deltaPhft =
-          (nivelIntermediarioMap[key]['PHFT REAL UH'] || 0) -
-          (nivelIntermediarioMap[key]['PHFT REF UH'] || 0);
-        const deltaRedCttg =
-          (nivelIntermediarioMap[key]['CargaTermica_Sum REAL'] || 0) -
-          (nivelIntermediarioMap[key]['CargaTermica_Sum REF'] || 0);
-
-        nivelIntermediarioMap[key]['Delta PHFT'] = deltaPhft;
-        nivelIntermediarioMap[key]['Delta RedCttg'] = deltaRedCttg;
-
-        // Check for the max PHFT REAL UH
-        if (row['PHFT REAL UH'] && row['PHFT REAL UH'] > maxPhftRealUh) {
-          maxPhftRealUh = row['PHFT REAL UH'];
-        }
-
-        // Check for the max Delta PHFT
-        if (deltaPhft > maxDeltaPhft) {
-          maxDeltaPhft = deltaPhft;
-        }
-
-        // Check for the max Delta RedCttg
-        if (deltaRedCttg !== null && deltaRedCttg > maxDeltaRedCttg) {
-          maxDeltaRedCttg = deltaRedCttg;
-        }
+        refData['Delta PHFT'] =
+          (row['PHFT_Avg'] || 0) - (refData.PHFT_Min || 0);
+        refData['RedCttg'] =
+          (nivelIntermediarioMap[key]['RedCttg'] || 0) -
+          (row['CargaTermica_Sum'] || 0);
       }
     });
 
-    console.log('Max PHFT REAL UH:', maxPhftRealUh);
-    console.log('Max Delta PHFT:', maxDeltaPhft);
-    console.log('Max Delta RedCttg:', maxDeltaRedCttg);
-
-    // Verificar status após todos os valores serem preenchidos
+    // Avaliar o status de cada unidade
     Object.values(nivelIntermediarioMap).forEach((item) => {
-      const {
-        PHFT_Min: phftMin,
-        RedCgTTmin: redCttgMin,
-        'Delta PHFT': deltaPhft,
-        'Delta RedCttg': deltaRedCttg,
-      } = item;
-
-      // Verifica se as condições são atendidas
-      const phftConditionMet = deltaPhft !== null && deltaPhft > (phftMin || 0);
+      const phftConditionMet = (item['Delta PHFT'] || 0) > (item.PHFT_Min || 0);
       const redCttgConditionMet =
-        deltaRedCttg !== null &&
-        redCttgMin !== null &&
-        deltaRedCttg > redCttgMin;
+        (item['RedCttg'] || 0) > (item.RedCgTTmin || 0);
 
-      item['Status'] =
+      item.Status =
         phftConditionMet || redCttgConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
     });
 
+    // Retornar os dados no formato final
     return Object.values(nivelIntermediarioMap);
   };
 
-  interface NivelSuperiorData {
+  interface NivelSuperiorDataOutput {
     Pavimento: string;
     Unidade: string;
-    PHFT_Min_Sup: number | null;
-    RedCgTTmin_Sup: number | null;
-    'PHFT REAL UH': number | null;
-    'PHFT REF UH': number | null;
-    'CargaTermica_Sum REF': number | null;
-    'CargaTermica_Sum REAL': number | null;
-    'Delta PHFT_Sup': number | null;
-    'Delta RedCttg_Sup': number | null;
+    PHFT_Min: number | null;
+    'Delta PHFT': number | null;
+    RedCgTTmin: number | null;
+    RedCttg: number | null;
     Status: string;
   }
 
   const createNivelSuperiorData = (
     summaryData: any[],
     summaryModelRealData: any[],
-  ): NivelSuperiorData[] => {
-    const nivelSuperiorMap: { [key: string]: NivelSuperiorData } = {};
+  ): NivelSuperiorDataOutput[] => {
+    const nivelSuperiorMap: { [key: string]: NivelSuperiorDataOutput } = {};
 
-    // Variables to store the maximum values
-    let maxPhftRefUh = -Infinity;
-    let maxPhftRealUh = -Infinity;
-    let maxDeltaPhft = -Infinity;
-    let maxDeltaRedCttg = -Infinity;
-
-    // Preencher o mapa com dados das unidades habitacionais do modelo ref
     summaryData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
-
+      const key = `${row.Pavimento}-${row.Unidade}`;
       if (!nivelSuperiorMap[key]) {
         nivelSuperiorMap[key] = {
-          Pavimento: pavimento,
-          Unidade: unidade,
-          PHFT_Min_Sup: row['PHFT_Min_Sup'] || null,
-          RedCgTTmin_Sup: row['RedCgTTmin_Sup'] || null,
-          'PHFT REF UH': row['PHFT_Avg'] || null,
-          'PHFT REAL UH': null, // Para ser preenchido depois
-          'CargaTermica_Sum REF': row['CargaTermica_Sum'] || null,
-          'CargaTermica_Sum REAL': null, // Para ser preenchido depois
-          'Delta PHFT_Sup': null, // Será calculado depois
-          'Delta RedCttg_Sup': null, // Será calculado depois
+          Pavimento: row.Pavimento,
+          Unidade: row.Unidade,
+          PHFT_Min: row['PHFT_Min_Sup'] || null,
+          'Delta PHFT': null,
+          RedCgTTmin: row['RedCgTTmin_Sup'] || null,
+          RedCttg: row['CargaTermica_Sum'] || null,
           Status: '',
         };
-
-        // Check for the max PHFT REF UH
-        if (row['PHFT REF UH'] && row['PHFT REF UH'] > maxPhftRefUh) {
-          maxPhftRefUh = row['PHFT REF UH'];
-        }
       }
     });
 
-    console.log('Max PHFT REF UH:', maxPhftRefUh);
-
-    // Preencher os dados do modelo real
     summaryModelRealData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
-
+      const key = `${row.Pavimento}-${row.Unidade}`;
       if (nivelSuperiorMap[key]) {
-        // Preencher os valores reais
-        nivelSuperiorMap[key]['PHFT REAL UH'] = row['PHFT_Avg'] || null;
-        nivelSuperiorMap[key]['CargaTermica_Sum REAL'] =
-          row['CargaTermica_Sum'] || null;
-
-        // Calcular os deltas
         const deltaPhft =
-          (nivelSuperiorMap[key]['PHFT REAL UH'] || 0) -
-          (nivelSuperiorMap[key]['PHFT REF UH'] || 0);
+          (row['PHFT_Avg'] || 0) - (nivelSuperiorMap[key]['PHFT_Min'] || 0);
+
         const deltaRedCttg =
-          (nivelSuperiorMap[key]['CargaTermica_Sum REAL'] || 0) -
-          (nivelSuperiorMap[key]['CargaTermica_Sum REF'] || 0);
+          (nivelSuperiorMap[key]['RedCttg'] || 0) -
+          (row['CargaTermica_Sum'] || 0);
 
-        nivelSuperiorMap[key]['Delta PHFT_Sup'] = deltaPhft;
-        nivelSuperiorMap[key]['Delta RedCttg_Sup'] = deltaRedCttg;
-
-        // Check for the max PHFT REAL UH
-        if (row['PHFT REAL UH'] && row['PHFT REAL UH'] > maxPhftRealUh) {
-          maxPhftRealUh = row['PHFT REAL UH'];
-        }
-
-        // Check for the max Delta PHFT
-        if (deltaPhft > maxDeltaPhft) {
-          maxDeltaPhft = deltaPhft;
-        }
-
-        // Check for the max Delta RedCttg
-        if (deltaRedCttg !== null && deltaRedCttg > maxDeltaRedCttg) {
-          maxDeltaRedCttg = deltaRedCttg;
-        }
+        nivelSuperiorMap[key]['Delta PHFT'] = deltaPhft;
+        nivelSuperiorMap[key]['RedCttg'] = deltaRedCttg;
       }
     });
 
-    console.log('Max PHFT REAL UH:', maxPhftRealUh);
-    console.log('Max Delta PHFT:', maxDeltaPhft);
-    console.log('Max Delta RedCttg:', maxDeltaRedCttg);
-
-    // Verificar status após todos os valores serem preenchidos
     Object.values(nivelSuperiorMap).forEach((item) => {
-      const {
-        PHFT_Min_Sup: phftMin,
-        RedCgTTmin_Sup: redCttgMin,
-        'Delta PHFT_Sup': deltaPhft,
-        'Delta RedCttg_Sup': deltaRedCttg,
-      } = item;
+      const phftConditionMet =
+        item['Delta PHFT'] !== null &&
+        item['Delta PHFT'] > (item.PHFT_Min || 0);
 
-      // Verifica se as condições são atendidas
-      const phftConditionMet = deltaPhft !== null && deltaPhft > (phftMin || 0);
       const redCttgConditionMet =
-        deltaRedCttg !== null &&
-        redCttgMin !== null &&
-        deltaRedCttg > redCttgMin;
+        item['RedCttg'] !== null && item['RedCttg'] > (item.RedCgTTmin || 0);
 
-      item['Status'] =
+      item.Status =
         phftConditionMet || redCttgConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
     });
 
@@ -607,26 +484,16 @@ const FileUpload: React.FC = () => {
     };
 
     // Função para processar Carga Térmica com otimização
+    // Função para processar Carga Térmica sem otimização de cache
     const processCargaTermica = async (
       tipoAmbiente: string,
       codigo: string,
       filteredData: any[],
-      cargaTermicaCache: Map<string, any>, // Cache para evitar processamento repetido
     ) => {
       let carga = 0;
       let cargaResfrValue = 0;
 
       if (includeCargaTermica && additionalFile) {
-        const cacheKey = `${codigo}_${tipoAmbiente}`;
-        // Verificar se o resultado já está no cache
-        if (cargaTermicaCache.has(cacheKey)) {
-          const cachedResult = cargaTermicaCache.get(cacheKey);
-          return {
-            carga: cachedResult.carga,
-            cargaResfrValue: cachedResult.cargaResfrValue,
-          };
-        }
-
         try {
           const cargaData = await parseFile(additionalFile);
           const cargaFilteredData = filterData(cargaData, tipoAmbiente);
@@ -646,15 +513,20 @@ const FileUpload: React.FC = () => {
             numericSelectedInterval,
           );
           carga = cargaTermicaResult;
-
-          // Armazenar o resultado no cache
-          cargaTermicaCache.set(cacheKey, { carga, cargaResfrValue });
         } catch (error) {
           console.error('Erro ao processar arquivo de Carga Térmica:', error);
         }
       }
 
       return { carga, cargaResfrValue };
+    };
+
+    const roundUpToTwoDecimals = (value: number): number => {
+      return Math.ceil(value * 100) / 100;
+    };
+
+    const roundToOneDecimal = (value: number): number => {
+      return Math.round(value * 10) / 10;
     };
 
     // Função para processar cada linha do modelo com cache otimizado
@@ -664,11 +536,10 @@ const FileUpload: React.FC = () => {
       selectedInterval: number,
       includeCargaTermica: boolean,
       additionalFile: File | null,
-      cargaTermicaCache: Map<string, any>, // Cache para carga térmica
       areaColumnExists: boolean, // Passar a variável como argumento
     ) => {
       const tipoAmbiente = modelRow['Tipo de ambiente'];
-      const areaUh = areaColumnExists ? modelRow['Area'] : undefined; // Somente pega o valor se a coluna existir
+      const areaUh = areaColumnExists ? modelRow['Area'] : undefined;
       const codigo = modelRow['Código'];
 
       if (!codigo || !tipoAmbiente) {
@@ -680,32 +551,38 @@ const FileUpload: React.FC = () => {
       }
 
       const filteredData = filterData(vnData, tipoAmbiente);
-      const minTemp = getMinTemperature(
-        filteredData,
-        `${codigo}:Zone Operative Temperature [C](Hourly)`,
+      const minTemp = roundUpToTwoDecimals(
+        getMinTemperature(
+          filteredData,
+          `${codigo}:Zone Operative Temperature [C](Hourly)`,
+        ),
       );
-      const maxTemp = getMaxTemperature(
-        filteredData,
-        `${codigo}:Zone Operative Temperature [C](Hourly)`,
+      const maxTemp = roundUpToTwoDecimals(
+        getMaxTemperature(
+          filteredData,
+          `${codigo}:Zone Operative Temperature [C](Hourly)`,
+        ),
       );
-      const nhftValue = getNhftValue(
-        filteredData,
-        `${codigo}:Zone Operative Temperature [C](Hourly)`,
-        selectedInterval,
+      const nhftValue = roundUpToTwoDecimals(
+        getNhftValue(
+          filteredData,
+          `${codigo}:Zone Operative Temperature [C](Hourly)`,
+          selectedInterval,
+        ),
       );
 
-      const phftValue =
+      const phftValue = roundUpToTwoDecimals(
         tipoAmbiente === 'Quarto'
           ? (nhftValue / 3650) * 100
           : tipoAmbiente === 'Misto'
             ? (nhftValue / 6570) * 100
-            : (nhftValue / 2920) * 100;
+            : (nhftValue / 2920) * 100,
+      );
 
       const { carga, cargaResfrValue } = await processCargaTermica(
         tipoAmbiente,
         codigo,
         filteredData,
-        cargaTermicaCache,
       );
 
       return {
@@ -714,14 +591,20 @@ const FileUpload: React.FC = () => {
         Código: codigo,
         Nome: modelRow['Nome'],
         'Tipo de ambiente': tipoAmbiente,
-        ...(areaColumnExists && { Area: areaUh }), // Condicionalmente incluir a coluna "Area"
+        ...(areaColumnExists && { Area: areaUh }),
         'MIN TEMP': minTemp,
         'MAX TEMP': maxTemp,
         NHFT: nhftValue,
         PHFT: phftValue,
-        'CARGA RESF': includeCargaTermica ? carga - cargaResfrValue : undefined,
-        'CARGA AQUE': includeCargaTermica ? cargaResfrValue : undefined,
-        'CARGA TERM': includeCargaTermica ? carga : undefined,
+        'CARGA RESF': includeCargaTermica
+          ? roundUpToTwoDecimals(carga - cargaResfrValue)
+          : undefined,
+        'CARGA AQUE': includeCargaTermica
+          ? roundUpToTwoDecimals(cargaResfrValue)
+          : undefined,
+        'CARGA TERM': includeCargaTermica
+          ? roundUpToTwoDecimals(carga)
+          : undefined,
       };
     };
 
@@ -755,20 +638,21 @@ const FileUpload: React.FC = () => {
             );
             summaryMap[key].PHFT_Sum += row['PHFT'] || 0;
             summaryMap[key].CargaTermica_Sum += row['CARGA TERM'] || 0;
-            summaryMap[key].Area += row['Area']; // Soma a área se já existir
+            summaryMap[key].Area += row['Area'];
             summaryMap[key].Count += 1;
           }
         }
       });
 
+      // Mapeamento para estrutura final
       return Object.values(summaryMap).map((entry) => {
         const PHFT_Avg = entry.PHFT_Sum / entry.Count;
-        let PHFT_Min = 0; // Inicializa como 0 para o caso PHFT_Avg > 70
-        let RedCgTTmin = 0; // Inicializa RedCgTTmin como 0
-        let PHFT_Min_Sup = 0; // Inicializa como 0 para o caso PHFT_Avg > 70
-        let RedCgTTmin_Sup = 0; // Inicializa RedCgTTmin como 0
+        let PHFT_Min = 0;
+        let RedCgTTmin = 0;
+        let PHFT_Min_Sup = 0;
+        let RedCgTTmin_Sup = 0;
 
-        // Cálculo de PHFT_Min como antes
+        // Cálculos para PHFT_Min e RedCgTTmin como já definido
         if (PHFT_Avg < 70) {
           const pavimentos = new Set(
             cleanOutputData.map((row) => row.Pavimento.toLowerCase()),
@@ -789,94 +673,31 @@ const FileUpload: React.FC = () => {
               PHFT_Min = 28 - 0.27 * PHFT_Avg;
             }
           }
-        }
-
-        if (PHFT_Avg < 70) {
-          const pavimentos = new Set(
-            cleanOutputData.map((row) => row.Pavimento.toLowerCase()),
-          );
-
-          if (pavimentos.size === 1) {
-            PHFT_Min_Sup = 45 - 0.58 * PHFT_Avg;
-          } else {
-            const pavimentoLower = entry.Pavimento.toLowerCase();
-            if (pavimentoLower.includes('cobertura')) {
-              PHFT_Min_Sup = 18 - 0.18 * PHFT_Avg;
-            } else if (
-              pavimentoLower.includes('térreo') ||
-              pavimentoLower.includes('terreo')
-            ) {
-              PHFT_Min_Sup = 22 - 0.21 * PHFT_Avg;
-            } else {
-              PHFT_Min_Sup = 28 - 0.27 * PHFT_Avg;
-            }
-          }
-        }
-
-        // Lógica para calcular RedCgTTmin
-        if (PHFT_Avg >= 70) {
-          const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area; // Ajustar para calcular a média por área
+          PHFT_Min_Sup = PHFT_Min; // Mesmo cálculo para nível superior
+        } else {
+          const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area;
 
           if (cargaTermicaPorArea < 100) {
-            if (entry.Count === 1) {
-              RedCgTTmin = 17; // Apenas um pavimento
-            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
-              RedCgTTmin = 15; // Pavimento térreo
-            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
-              RedCgTTmin = 15; // Pavimento cobertura
-            } else {
-              RedCgTTmin = 22; // Qualquer outro pavimento
-            }
+            RedCgTTmin = entry.Count === 1 ? 17 : 15;
+            RedCgTTmin_Sup = entry.Count === 1 ? 35 : 30;
           } else {
-            if (entry.Count === 1) {
-              RedCgTTmin = 27; // Apenas um pavimento
-            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
-              RedCgTTmin = 20; // Pavimento térreo
-            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
-              RedCgTTmin = 20; // Pavimento cobertura
-            } else {
-              RedCgTTmin = 25; // Qualquer outro pavimento
-            }
+            RedCgTTmin = entry.Count === 1 ? 27 : 20;
+            RedCgTTmin_Sup = entry.Count === 1 ? 55 : 40;
           }
         }
 
-        if (PHFT_Avg >= 70) {
-          const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area; // Ajustar para calcular a média por área
-
-          if (cargaTermicaPorArea < 100) {
-            if (entry.Count === 1) {
-              RedCgTTmin_Sup = 35; // Apenas um pavimento
-            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
-              RedCgTTmin_Sup = 30; // Pavimento térreo
-            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
-              RedCgTTmin_Sup = 30; // Pavimento cobertura
-            } else {
-              RedCgTTmin_Sup = 45; // Qualquer outro pavimento
-            }
-          } else {
-            if (entry.Count === 1) {
-              RedCgTTmin_Sup = 55; // Apenas um pavimento
-            } else if (entry.Pavimento.toLowerCase().includes('térreo')) {
-              RedCgTTmin_Sup = 40; // Pavimento térreo
-            } else if (entry.Pavimento.toLowerCase().includes('cobertura')) {
-              RedCgTTmin_Sup = 40; // Pavimento cobertura
-            } else {
-              RedCgTTmin_Sup = 50; // Qualquer outro pavimento
-            }
-          }
-        }
-
+        // Retorno dos dados formatados para a tabela
         return {
           Pavimento: entry.Pavimento,
           Unidade: entry.Unidade,
-          MinTemp: entry.MinTemp,
-          MaxTemp: entry.MaxTemp,
-          PHFT_Avg: PHFT_Avg,
-          PHFT_Min: PHFT_Min,
-          CargaTermica_Sum: entry.CargaTermica_Sum,
-          RedCgTTmin: RedCgTTmin, // Adiciona a nova coluna
-          PHFT_Min_Sup: PHFT_Min_Sup,
-          RedCgTTmin_Sup: RedCgTTmin_Sup,
+          MinTemp: roundToOneDecimal(entry.MinTemp),
+          MaxTemp: roundToOneDecimal(entry.MaxTemp),
+          PHFT_Avg: roundUpToTwoDecimals(PHFT_Avg),
+          PHFT_Min: roundUpToTwoDecimals(PHFT_Min),
+          CargaTermica_Sum: roundUpToTwoDecimals(entry.CargaTermica_Sum),
+          RedCgTTmin: roundUpToTwoDecimals(RedCgTTmin),
+          PHFT_Min_Sup,
+          RedCgTTmin_Sup,
         };
       });
     };
@@ -1004,9 +825,6 @@ const FileUpload: React.FC = () => {
         const vnData = await parseFile(selectedVNFile);
         const modelData = await parseModelExcel(selectedModelFile);
 
-        // Inicializar o cache de Carga Térmica
-        const cargaTermicaCache = new Map<string, any>();
-
         const outputData = await Promise.all(
           modelData.map((modelRow) =>
             processModelRow(
@@ -1015,7 +833,6 @@ const FileUpload: React.FC = () => {
               selectedInterval,
               includeCargaTermica,
               additionalFile,
-              cargaTermicaCache, // Passar o cache
               areaColumnExists,
             ),
           ),
@@ -1023,10 +840,19 @@ const FileUpload: React.FC = () => {
 
         const cleanOutputData = outputData.filter((row) => row !== null);
         const summaryData = createSummaryData(cleanOutputData);
+        const summaryDataToOutput = createSummaryData(cleanOutputData).map(
+          ({ Pavimento, Unidade, MinTemp, MaxTemp, PHFT_Avg }) => ({
+            Pavimento,
+            Unidade,
+            MinTemp,
+            MaxTemp,
+            PHFT_Avg, // Inclui apenas colunas desejadas na tabela final
+          }),
+        );
 
         const sheets: { [sheetName: string]: any[] } = {
           Output: cleanOutputData,
-          Summary: summaryData,
+          Summary: summaryDataToOutput,
         };
 
         if (includeModeloReal && selectedVNFile2) {
@@ -1040,7 +866,6 @@ const FileUpload: React.FC = () => {
                 selectedInterval,
                 includeCargaTermica,
                 additionalFile2,
-                cargaTermicaCache,
                 areaColumnExists,
               ),
             ),
@@ -1052,9 +877,18 @@ const FileUpload: React.FC = () => {
           const summaryModelRealData = createSummaryData(
             cleanOutputModelRealData,
           );
+          const summaryModelRealDataToOutput = createSummaryData(
+            cleanOutputModelRealData,
+          ).map(({ Pavimento, Unidade, MinTemp, MaxTemp, PHFT_Avg }) => ({
+            Pavimento,
+            Unidade,
+            MinTemp,
+            MaxTemp,
+            PHFT_Avg, // Inclui apenas colunas desejadas na tabela final
+          }));
 
           sheets['Modelo Real Output'] = cleanOutputModelRealData;
-          sheets['Modelo Real Summary'] = summaryModelRealData;
+          sheets['Modelo Real Summary'] = summaryModelRealDataToOutput;
 
           const nivelMinimoData = createNivelMinimoData(
             summaryData,
