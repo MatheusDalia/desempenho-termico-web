@@ -292,8 +292,8 @@ const FileUpload: React.FC = () => {
           Pavimento: row.Pavimento,
           Unidade: row.Unidade,
           PHFT_Min: row['PHFT_Min'] || null,
-          RedCgTTmin: row['RedCgTTmin'] || null,
           'Delta PHFT': null,
+          RedCgTTmin: row['RedCgTTmin'] || null,
           RedCttg: row['CargaTermica_Sum'] || null,
           Status: '',
         };
