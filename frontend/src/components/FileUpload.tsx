@@ -273,7 +273,7 @@ const FileUpload: React.FC = () => {
     PHFT_Min: number | null;
     'Delta PHFT': number | null;
     RedCgTTmin: number | null;
-    RedCttg: number | null;
+    RedCgTT: number | null;
     Status: string;
   }
 
@@ -293,8 +293,8 @@ const FileUpload: React.FC = () => {
           Unidade: row.Unidade,
           PHFT_Min: row['PHFT_Min'] || null,
           'Delta PHFT': null,
-          RedCgTTmin: row['RedCgTTmin'] || null,
-          RedCttg: row['CargaTermica_Sum'] || null,
+          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
+          RedCgTT: Math.ceil(row['CargaTermica_Sum'] * 100) / 100 || null,
           Status: '',
         };
       }
@@ -309,20 +309,22 @@ const FileUpload: React.FC = () => {
         // Calcular os deltas
         refData['Delta PHFT'] =
           (row['PHFT_Avg'] || 0) - (refData.PHFT_Min || 0);
-        refData['RedCttg'] =
-          (nivelIntermediarioMap[key]['RedCttg'] || 0) -
-          (row['CargaTermica_Sum'] || 0);
+        refData['RedCgTT'] =
+          (1 -
+            (row['CargaTermica_Sum'] || 0) /
+              (nivelIntermediarioMap[key]['RedCgTT'] || 0)) *
+          100;
       }
     });
 
     // Avaliar o status de cada unidade
     Object.values(nivelIntermediarioMap).forEach((item) => {
       const phftConditionMet = (item['Delta PHFT'] || 0) > (item.PHFT_Min || 0);
-      const redCttgConditionMet =
-        (item['RedCttg'] || 0) > (item.RedCgTTmin || 0);
+      const redCgTTConditionMet =
+        (item['RedCgTT'] || 0) > (item.RedCgTTmin || 0);
 
       item.Status =
-        phftConditionMet || redCttgConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
+        phftConditionMet || redCgTTConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
     });
 
     // Retornar os dados no formato final
@@ -335,7 +337,7 @@ const FileUpload: React.FC = () => {
     PHFT_Min: number | null;
     'Delta PHFT': number | null;
     RedCgTTmin: number | null;
-    RedCttg: number | null;
+    RedCgTT: number | null;
     Status: string;
   }
 
@@ -351,10 +353,12 @@ const FileUpload: React.FC = () => {
         nivelSuperiorMap[key] = {
           Pavimento: row.Pavimento,
           Unidade: row.Unidade,
-          PHFT_Min: row['PHFT_Min_Sup'] || null,
+          PHFT_Min: row['PHFT_Min_Sup']
+            ? Math.ceil(row['PHFT_Min_Sup'] * 100) / 100
+            : null,
           'Delta PHFT': null,
-          RedCgTTmin: row['RedCgTTmin_Sup'] || null,
-          RedCttg: row['CargaTermica_Sum'] || null,
+          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
+          RedCgTT: row['CargaTermica_Sum'] || null,
           Status: '',
         };
       }
@@ -366,12 +370,15 @@ const FileUpload: React.FC = () => {
         const deltaPhft =
           (row['PHFT_Avg'] || 0) - (nivelSuperiorMap[key]['PHFT_Min'] || 0);
 
-        const deltaRedCttg =
-          (nivelSuperiorMap[key]['RedCttg'] || 0) -
-          (row['CargaTermica_Sum'] || 0);
+        const deltaRedCgTT =
+          (1 -
+            (row['CargaTermica_Sum'] || 0) /
+              (nivelSuperiorMap[key]['RedCgTT'] || 0)) *
+          100;
 
-        nivelSuperiorMap[key]['Delta PHFT'] = deltaPhft;
-        nivelSuperiorMap[key]['RedCttg'] = deltaRedCttg;
+        // Arredondar para cima para duas casas decimais
+        nivelSuperiorMap[key]['Delta PHFT'] = Math.ceil(deltaPhft * 100) / 100;
+        nivelSuperiorMap[key]['RedCgTT'] = Math.ceil(deltaRedCgTT * 100) / 100;
       }
     });
 
@@ -380,11 +387,11 @@ const FileUpload: React.FC = () => {
         item['Delta PHFT'] !== null &&
         item['Delta PHFT'] > (item.PHFT_Min || 0);
 
-      const redCttgConditionMet =
-        item['RedCttg'] !== null && item['RedCttg'] > (item.RedCgTTmin || 0);
+      const redCgTTConditionMet =
+        item['RedCgTT'] !== null && item['RedCgTT'] > (item.RedCgTTmin || 0);
 
       item.Status =
-        phftConditionMet || redCttgConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
+        phftConditionMet || redCgTTConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
     });
 
     return Object.values(nivelSuperiorMap);
@@ -679,25 +686,31 @@ const FileUpload: React.FC = () => {
 
           if (cargaTermicaPorArea < 100) {
             RedCgTTmin = entry.Count === 1 ? 17 : 15;
-            RedCgTTmin_Sup = entry.Count === 1 ? 35 : 30;
           } else {
             RedCgTTmin = entry.Count === 1 ? 27 : 20;
-            RedCgTTmin_Sup = entry.Count === 1 ? 55 : 40;
           }
+        }
+        // Cálculo de RedCgTTmin_Sup, independentemente de PHFT_Avg
+        const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area;
+
+        if (cargaTermicaPorArea < 100) {
+          RedCgTTmin_Sup = entry.Count === 1 ? 35 : 30;
+        } else {
+          RedCgTTmin_Sup = entry.Count === 1 ? 55 : 40;
         }
 
         // Retorno dos dados formatados para a tabela
         return {
-          Pavimento: entry.Pavimento,
-          Unidade: entry.Unidade,
-          MinTemp: roundToOneDecimal(entry.MinTemp),
-          MaxTemp: roundToOneDecimal(entry.MaxTemp),
-          PHFT_Avg: roundUpToTwoDecimals(PHFT_Avg),
-          PHFT_Min: roundUpToTwoDecimals(PHFT_Min),
-          CargaTermica_Sum: roundUpToTwoDecimals(entry.CargaTermica_Sum),
-          RedCgTTmin: roundUpToTwoDecimals(RedCgTTmin),
-          PHFT_Min_Sup,
-          RedCgTTmin_Sup,
+          Pavimento: entry.Pavimento ?? 0,
+          Unidade: entry.Unidade ?? 0,
+          MinTemp: roundToOneDecimal(entry.MinTemp) ?? 0,
+          MaxTemp: roundToOneDecimal(entry.MaxTemp) ?? 0,
+          PHFT_Avg: roundUpToTwoDecimals(PHFT_Avg) ?? 0,
+          PHFT_Min: roundUpToTwoDecimals(PHFT_Min) ?? 0,
+          CargaTermica_Sum: roundUpToTwoDecimals(entry.CargaTermica_Sum) ?? 0,
+          RedCgTTmin: roundUpToTwoDecimals(RedCgTTmin) ?? 0,
+          PHFT_Min_Sup: PHFT_Min_Sup ?? 0,
+          RedCgTTmin_Sup: RedCgTTmin_Sup ?? 0,
         };
       });
     };
@@ -841,12 +854,20 @@ const FileUpload: React.FC = () => {
         const cleanOutputData = outputData.filter((row) => row !== null);
         const summaryData = createSummaryData(cleanOutputData);
         const summaryDataToOutput = createSummaryData(cleanOutputData).map(
-          ({ Pavimento, Unidade, MinTemp, MaxTemp, PHFT_Avg }) => ({
+          ({
             Pavimento,
             Unidade,
             MinTemp,
             MaxTemp,
-            PHFT_Avg, // Inclui apenas colunas desejadas na tabela final
+            PHFT_Avg,
+            CargaTermica_Sum,
+          }) => ({
+            Pavimento,
+            Unidade,
+            MinTemp,
+            MaxTemp,
+            PHFT_Avg,
+            CargaTermica_Sum, // Inclui apenas colunas desejadas na tabela final
           }),
         );
 
@@ -879,13 +900,23 @@ const FileUpload: React.FC = () => {
           );
           const summaryModelRealDataToOutput = createSummaryData(
             cleanOutputModelRealData,
-          ).map(({ Pavimento, Unidade, MinTemp, MaxTemp, PHFT_Avg }) => ({
-            Pavimento,
-            Unidade,
-            MinTemp,
-            MaxTemp,
-            PHFT_Avg, // Inclui apenas colunas desejadas na tabela final
-          }));
+          ).map(
+            ({
+              Pavimento,
+              Unidade,
+              MinTemp,
+              MaxTemp,
+              PHFT_Avg,
+              CargaTermica_Sum,
+            }) => ({
+              Pavimento,
+              Unidade,
+              MinTemp,
+              MaxTemp,
+              PHFT_Avg,
+              CargaTermica_Sum, // Inclui apenas colunas desejadas na tabela final
+            }),
+          );
 
           sheets['Modelo Real Output'] = cleanOutputModelRealData;
           sheets['Modelo Real Summary'] = summaryModelRealDataToOutput;
