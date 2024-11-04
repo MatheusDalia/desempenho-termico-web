@@ -294,7 +294,7 @@ const FileUpload: React.FC = () => {
           PHFT_Min: row['PHFT_Min'] || null,
           'Delta PHFT': null,
           RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
-          RedCgTT: Math.ceil(row['CargaTermica_Sum'] * 100) / 100 || null,
+          RedCgTT: row['CargaTermica_Sum']  || null,
           Status: '',
         };
       }
@@ -309,11 +309,11 @@ const FileUpload: React.FC = () => {
         // Calcular os deltas
         refData['Delta PHFT'] =
           (row['PHFT_Avg'] || 0) - (refData.PHFT_Min || 0);
-        refData['RedCgTT'] =
-          (1 -
-            (row['CargaTermica_Sum'] || 0) /
-              (nivelIntermediarioMap[key]['RedCgTT'] || 0)) *
-          100;
+
+        // Calcular e arredondar RedCgTT para cima com duas casas decimais
+        const redCgTTValue =
+          (1 - (row['CargaTermica_Sum'] || 0) / (refData['RedCgTT'] || 1)) * 100;
+        refData['RedCgTT'] = Math.ceil(redCgTTValue * 100) / 100;
       }
     });
 
