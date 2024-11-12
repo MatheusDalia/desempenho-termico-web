@@ -294,7 +294,7 @@ const FileUpload: React.FC = () => {
           PHFT_Min: row['PHFT_Min'] || null,
           'Delta PHFT': null,
           RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
-          RedCgTT: row['CargaTermica_Sum']  || null,
+          RedCgTT: row['CargaTermica_Sum'] || null,
           Status: '',
         };
       }
@@ -312,7 +312,8 @@ const FileUpload: React.FC = () => {
 
         // Calcular e arredondar RedCgTT para cima com duas casas decimais
         const redCgTTValue =
-          (1 - (row['CargaTermica_Sum'] || 0) / (refData['RedCgTT'] || 1)) * 100;
+          (1 - (row['CargaTermica_Sum'] || 0) / (refData['RedCgTT'] || 1)) *
+          100;
         refData['RedCgTT'] = Math.ceil(redCgTTValue * 100) / 100;
       }
     });
@@ -324,7 +325,7 @@ const FileUpload: React.FC = () => {
         (item['RedCgTT'] || 0) > (item.RedCgTTmin || 0);
 
       item.Status =
-        phftConditionMet || redCgTTConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
+        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
     });
 
     // Retornar os dados no formato final
@@ -391,7 +392,7 @@ const FileUpload: React.FC = () => {
         item['RedCgTT'] !== null && item['RedCgTT'] > (item.RedCgTTmin || 0);
 
       item.Status =
-        phftConditionMet || redCgTTConditionMet ? 'NÃO ATENDIDO' : 'ATENDIDO';
+        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
     });
 
     return Object.values(nivelSuperiorMap);
