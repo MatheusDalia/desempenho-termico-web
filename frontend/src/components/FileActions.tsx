@@ -6,6 +6,7 @@ interface FileActionsProps {
   canGenerate: boolean;
   outputFile: Blob | null;
   isLoading: boolean;
+  progress: string;
   notifyError: (title: string, message: string) => void; // Add this prop
 }
 
@@ -14,8 +15,12 @@ const FileActions: React.FC<FileActionsProps> = ({
   canGenerate,
   outputFile,
   isLoading,
+  progress,
   notifyError,
 }) => {
+  // Log para monitorar as atualizações de progresso
+  console.log('Progresso Atual:', progress);
+  
   const handleGenerateClick = () => {
     if (!canGenerate) {
       notifyError(
@@ -79,28 +84,7 @@ const FileActions: React.FC<FileActionsProps> = ({
           Download Generated File
         </a>
       )}
-      {isLoading && (
-        <div
-          className="spinner"
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginTop: '10px',
-          }}
-        >
-          <div
-            style={{
-              border: '4px solid #f3f3f3',
-              borderTop: '4px solid #3498db',
-              borderRadius: '50%',
-              width: '30px',
-              height: '30px',
-              animation: 'spin 1s linear infinite',
-            }}
-          ></div>
-        </div>
-      )}
+      <h2>{isLoading && progress ? progress : 'Análise Térmica'}</h2>
     </div>
   );
 };
