@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 
-export const generateWorkbook = async (sheets: Record<string, any[]>): Promise<Uint8Array> => {
+export const generateWorkbook = async (
+  sheets: Record<string, any[]>,
+): Promise<Uint8Array> => {
   const workbook = new ExcelJS.Workbook();
 
   // Adicionando as planilhas

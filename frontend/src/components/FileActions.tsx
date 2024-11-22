@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ToastContainer } from 'react-toastify';
 
 interface FileActionsProps {
@@ -6,7 +6,6 @@ interface FileActionsProps {
   canGenerate: boolean;
   outputFile: Blob | null;
   isLoading: boolean;
-  progress: string;
   notifyError: (title: string, message: string) => void; // Add this prop
 }
 
@@ -15,12 +14,9 @@ const FileActions: React.FC<FileActionsProps> = ({
   canGenerate,
   outputFile,
   isLoading,
-  progress,
   notifyError,
 }) => {
-  // Log para monitorar as atualizações de progresso
-  console.log('Progresso Atual:', progress);
-  
+
   const handleGenerateClick = () => {
     if (!canGenerate) {
       notifyError(
@@ -31,6 +27,13 @@ const FileActions: React.FC<FileActionsProps> = ({
     }
     onGenerate();
   };
+
+  // Log when the output file is generated
+  useEffect(() => {
+    if (outputFile) {
+      console.log('Output file generated:', outputFile);
+    }
+  }, [outputFile]);
 
   return (
     <div
@@ -84,7 +87,6 @@ const FileActions: React.FC<FileActionsProps> = ({
           Download Generated File
         </a>
       )}
-      <h2>{isLoading && progress ? progress : 'Análise Térmica'}</h2>
     </div>
   );
 };

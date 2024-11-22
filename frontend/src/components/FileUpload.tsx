@@ -12,6 +12,24 @@ import { initializeMap, calculateDeltas, evaluateStatus } from '../utils/analise
 
 import 'react-toastify/dist/ReactToastify.css';
 
+interface NivelSuperiorDataOutput {
+  Pavimento: string;
+  Unidade: string;
+  PHFT_Min: number | null;
+  'Delta PHFT': number | null;
+  RedCgTTmin: number | null;
+  RedCgTT: number | null;
+  Status: string;
+}
+interface NivelIntermediarioData {
+  Pavimento: string;
+  Unidade: string;
+  PHFT_Min: number | null;
+  'Delta PHFT': number | null;
+  RedCgTTmin: number | null;
+  RedCgTT: number | null;
+  Status: string;
+}
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
   const [includeCargaTermica, setIncludeCargaTermica] =
@@ -125,126 +143,197 @@ const FileUpload: React.FC = () => {
     summaryData: any[],
     summaryModelRealData: any[],
   ): NivelMinimoData[] => {
-    const initialFields = {
-      'Temp Max REF UH': null,
-      'Temp Max REAL UH': null,
-      'PHFT REF UH': null,
-      'PHFT REAL UH': null,
-      Status: '',
-    };
-  
-    const nivelMinimoMap = initializeMap(summaryData, ['Pavimento', 'Unidade'], initialFields);
-  
+    const nivelMinimoMap: { [key: string]: NivelMinimoData } = {};
+
+    console.log('All rows in summaryData:', summaryData);
+
+    // Preencher o mapa com dados das unidades habitacionais do modelo ref
+    summaryData.forEach((row) => {
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade;
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+
+      if (!nivelMinimoMap[key]) {
+        nivelMinimoMap[key] = {
+          Pavimento: pavimento,
+          'Unidades Habitacionais': unidade,
+          'Temp Max REF UH': row['MaxTemp'],
+          'Temp Max REAL UH': null, // Para ser preenchido depois
+          'PHFT REF UH': row['PHFT_Avg'],
+          'PHFT REAL UH': null, // Para ser preenchido depois
+          Status: '',
+        };
+      } else {
+        // Se a unidade já existe, atualize os valores
+        nivelMinimoMap[key]['Temp Max REF UH'] = Math.max(
+          nivelMinimoMap[key]['Temp Max REF UH'] as number,
+          row['MaxTemp'],
+        );
+        nivelMinimoMap[key]['PHFT REF UH'] =
+          ((nivelMinimoMap[key]['PHFT REF UH'] as number) + row['PHFT_Avg']) /
+          2; // Calcular a média
+      }
+    });
+
+    // Preencher os dados do modelo real
     summaryModelRealData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
+      const pavimento = row.Pavimento;
+      const unidade = row.Unidade;
+      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
+
       if (nivelMinimoMap[key]) {
+        // Preencher os valores reais
         nivelMinimoMap[key]['Temp Max REAL UH'] = row['MaxTemp'];
         nivelMinimoMap[key]['PHFT REAL UH'] = row['PHFT_Avg'];
       }
     });
-  
+
+    // Verificar status após todos os valores serem preenchidos
     Object.values(nivelMinimoMap).forEach((item) => {
-      const conditions = [
-        item['Temp Max REAL UH'] < (item['Temp Max REF UH'] || 0) + 1,
-        item['PHFT REAL UH'] > 0.9 * (item['PHFT REF UH'] || 0),
-      ];
-      item.Status = evaluateStatus(conditions, item.Pavimento);
+      const { 'Temp Max REF UH': tempNormal, 'PHFT REF UH': phftNormal } = item;
+      const { 'Temp Max REAL UH': tempReal, 'PHFT REAL UH': phftReal } = item;
+
+      const isTempRealValid = tempReal !== null;
+      const isPhftRealValid = phftReal !== null;
+      const isTempNormalValid = tempNormal !== null;
+      const isPhftNormalValid = phftNormal !== null;
+
+      const pavimento = item['Pavimento'];
+
+      // Verifica se o pavimento é "Cobertura" ou "cobertura"
+      if (pavimento === 'Cobertura' || pavimento === 'cobertura') {
+        item['Status'] =
+          (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 2) ||
+          (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
+            ? 'NÃO ATENDIDO'
+            : 'ATENDIDO';
+      } else {
+        // Para outros tipos de pavimento
+        item['Status'] =
+          (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 1) ||
+          (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
+            ? 'NÃO ATENDIDO'
+            : 'ATENDIDO';
+      }
     });
-  
+
     return Object.values(nivelMinimoMap);
   };
 
-  type NivelData = {
-    Pavimento: string;
-    Unidade: string;
-    PHFT_Min: number | null;
-    'Delta PHFT': number | null;
-    RedCgTTmin: number | null;
-    RedCgTT: number | null;
-    Status: string;
-  };
-  
-  const initializeNivelData = (
-    summaryData: any[],
-    minKey: string,
-  ): Record<string, NivelData> => {
-    const map: Record<string, NivelData> = {};
-  
-    summaryData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-      if (!map[key]) {
-        map[key] = {
-          Pavimento: row.Pavimento,
-          Unidade: row.Unidade,
-          PHFT_Min: row[minKey] ? Math.ceil(row[minKey] * 100) / 100 : null,
-          'Delta PHFT': null,
-          RedCgTTmin: row['RedCgTTmin'] ?? 0,
-          RedCgTT: row['CargaTermica_Sum'] ?? null,
-          Status: '',
-        };
-      }
-    });
-  
-    return map;
-  };
-  
-  const updateNivelData = (
-    map: Record<string, NivelData>,
-    modelData: any[],
-  ): void => {
-    modelData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-      const refData = map[key];
-  
-      if (refData) {
-        // Use calculateDeltas for PHFT
-        const deltaPHFT = calculateDeltas(row['PHFT_Avg'], refData.PHFT_Min);
-        refData['Delta PHFT'] = deltaPHFT;
-  
-        // Use calculateDeltas for RedCgTT
-        const redCgTTReal = row['CargaTermica_Sum'] || null;
-        const redCgTTRef = refData['RedCgTT'] || null;
-        const deltaRedCgTT =
-          redCgTTReal !== null && redCgTTRef !== null
-            ? Math.ceil((1 - redCgTTReal / redCgTTRef) * 100 * 100) / 100
-            : null;
-        refData['RedCgTT'] = deltaRedCgTT;
-      }
-    });
-  };
-  
-  const evaluateNivelStatus = (map: Record<string, NivelData>): void => {
-    Object.values(map).forEach((item) => {
-      const phftConditionMet =
-        item['Delta PHFT'] !== null && item['Delta PHFT'] > (item.PHFT_Min || 0);
-      const redCgTTConditionMet =
-        item['RedCgTT'] !== null && item['RedCgTT'] > (item.RedCgTTmin || 0);
-  
-      item.Status =
-        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
-    });
-  };
-  
 
   const createNivelIntermediarioData = (
     summaryData: any[],
     summaryModelRealData: any[],
-  ): NivelData[] => {
-    const nivelIntermediarioMap = initializeNivelData(summaryData, 'PHFT_Min');
-    updateNivelData(nivelIntermediarioMap, summaryModelRealData);
-    evaluateNivelStatus(nivelIntermediarioMap);
+  ): NivelIntermediarioData[] => {
+    const nivelIntermediarioMap: { [key: string]: NivelIntermediarioData } = {};
+
+    // Preencher o mapa com dados do modelo de referência
+    summaryData.forEach((row) => {
+      const key = `${row.Pavimento}-${row.Unidade}`;
+
+      if (!nivelIntermediarioMap[key]) {
+        nivelIntermediarioMap[key] = {
+          Pavimento: row.Pavimento,
+          Unidade: row.Unidade,
+          PHFT_Min: row['PHFT_Min'] || null,
+          'Delta PHFT': null,
+          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
+          RedCgTT: row['CargaTermica_Sum'] || null,
+          Status: '',
+        };
+      }
+    });
+
+    // Preencher dados do modelo real e calcular deltas
+    summaryModelRealData.forEach((row) => {
+      const key = `${row.Pavimento}-${row.Unidade}`;
+      const refData = nivelIntermediarioMap[key];
+
+      if (refData) {
+        // Calcular os deltas
+        refData['Delta PHFT'] =
+          (row['PHFT_Avg'] || 0) - (refData.PHFT_Min || 0);
+
+        // Calcular e arredondar RedCgTT para cima com duas casas decimais
+        const redCgTTValue =
+          (1 - (row['CargaTermica_Sum'] || 0) / (refData['RedCgTT'] || 1)) *
+          100;
+        refData['RedCgTT'] = Math.ceil(redCgTTValue * 100) / 100;
+      }
+    });
+
+    // Avaliar o status de cada unidade
+    Object.values(nivelIntermediarioMap).forEach((item) => {
+      const phftConditionMet = (item['Delta PHFT'] || 0) > (item.PHFT_Min || 0);
+      const redCgTTConditionMet =
+        (item['RedCgTT'] || 0) > (item.RedCgTTmin || 0);
+
+      item.Status =
+        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
+    });
+
+    // Retornar os dados no formato final
     return Object.values(nivelIntermediarioMap);
   };
+
 
   const createNivelSuperiorData = (
     summaryData: any[],
     summaryModelRealData: any[],
-  ): NivelData[] => {
-    const nivelSuperiorMap = initializeNivelData(summaryData, 'PHFT_Min_Sup');
-    updateNivelData(nivelSuperiorMap, summaryModelRealData);
-    evaluateNivelStatus(nivelSuperiorMap);
+  ): NivelSuperiorDataOutput[] => {
+    const nivelSuperiorMap: { [key: string]: NivelSuperiorDataOutput } = {};
+
+    summaryData.forEach((row) => {
+      const key = `${row.Pavimento}-${row.Unidade}`;
+      if (!nivelSuperiorMap[key]) {
+        nivelSuperiorMap[key] = {
+          Pavimento: row.Pavimento,
+          Unidade: row.Unidade,
+          PHFT_Min: row['PHFT_Min_Sup']
+            ? Math.ceil(row['PHFT_Min_Sup'] * 100) / 100
+            : null,
+          'Delta PHFT': null,
+          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
+          RedCgTT: row['CargaTermica_Sum'] || null,
+          Status: '',
+        };
+      }
+    });
+
+    summaryModelRealData.forEach((row) => {
+      const key = `${row.Pavimento}-${row.Unidade}`;
+      if (nivelSuperiorMap[key]) {
+        const deltaPhft =
+          (row['PHFT_Avg'] || 0) - (nivelSuperiorMap[key]['PHFT_Min'] || 0);
+
+        const deltaRedCgTT =
+          (1 -
+            (row['CargaTermica_Sum'] || 0) /
+              (nivelSuperiorMap[key]['RedCgTT'] || 0)) *
+          100;
+
+        // Arredondar para cima para duas casas decimais
+        nivelSuperiorMap[key]['Delta PHFT'] = Math.ceil(deltaPhft * 100) / 100;
+        nivelSuperiorMap[key]['RedCgTT'] = Math.ceil(deltaRedCgTT * 100) / 100;
+      }
+    });
+
+    Object.values(nivelSuperiorMap).forEach((item) => {
+      const phftConditionMet =
+        item['Delta PHFT'] !== null &&
+        item['Delta PHFT'] > (item.PHFT_Min || 0);
+
+      const redCgTTConditionMet =
+        item['RedCgTT'] !== null && item['RedCgTT'] > (item.RedCgTTmin || 0);
+
+      item.Status =
+        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
+    });
+
     return Object.values(nivelSuperiorMap);
   };
+
+  
   interface ModelRow {
     Pavimento: string;
     Unidade: string;
@@ -544,7 +633,6 @@ const FileUpload: React.FC = () => {
         canGenerate={canGenerate}
         outputFile={outputFile}
         isLoading={isLoading}
-        progress = {progress}
         notifyError={notifyError}
       />
     </div>

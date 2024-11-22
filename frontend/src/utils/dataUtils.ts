@@ -102,9 +102,16 @@ export const getNhftValue = (data: any[], key: string, threshold: number) => {
 export const roundUpToTwoDecimals = (value: number): number =>
   Math.ceil(value * 100) / 100;
 
-export const calculatePHFT = (nhftValue: number, tipoAmbiente: string): number =>
+export const roundToOneDecimal = (value: number): number => {
+  return Math.round(value * 10) / 10;
+};
+
+export const calculatePHFT = (
+  nhftValue: number,
+  tipoAmbiente: string,
+): number =>
   tipoAmbiente === 'Quarto'
     ? (nhftValue / 3650) * 100
     : tipoAmbiente === 'Misto'
-    ? (nhftValue / 6570) * 100
-    : (nhftValue / 2920) * 100;
+      ? (nhftValue / 6570) * 100
+      : (nhftValue / 2920) * 100;

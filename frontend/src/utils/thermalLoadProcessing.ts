@@ -8,7 +8,7 @@ export const processCargaTermica = async (
   filteredData: any,
   includeCargaTermica: any,
   additionalFile: File,
-  numericSelectedInterval: number
+  numericSelectedInterval: number,
 ) => {
   // Verifica se a carga térmica deve ser incluída e se o arquivo adicional está presente
   if (!includeCargaTermica || !additionalFile) {
@@ -18,7 +18,7 @@ export const processCargaTermica = async (
   try {
     // Parse do arquivo adicional
     const cargaData = await parseFile(additionalFile);
-    
+
     // Filtra os dados uma única vez
     const cargaFilteredData = filterData(cargaData, tipoAmbiente);
 
