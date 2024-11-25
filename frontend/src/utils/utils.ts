@@ -244,7 +244,6 @@ export const generateWorkbook = async (sheets: {
   };
 
   for (const [sheetName, data] of Object.entries(sheets)) {
-    
     const worksheet = workbook.addWorksheet(sheetName);
 
     // Cabeçalho e formatação

@@ -1,35 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
 import './FileUpload.css';
-import { parseFile, parseModelExcel } from '../utils/parseFiles';
-import {processModelRow, createSummaryData, generateWorkbook} from '../utils/utils'
+
 import { processExcelFile, processCsvFile } from '../utils/fileProcessing';
 import FileDropZone from './FileDropzone';
 import FileActions from './FileActions';
 import { toast, ToastContainer } from 'react-toastify';
-import { initializeMap, calculateDeltas, evaluateStatus } from '../utils/analiseUtils';
-
 import 'react-toastify/dist/ReactToastify.css';
-
-interface NivelSuperiorDataOutput {
-  Pavimento: string;
-  Unidade: string;
-  PHFT_Min: number | null;
-  'Delta PHFT': number | null;
-  RedCgTTmin: number | null;
-  RedCgTT: number | null;
-  Status: string;
-}
-interface NivelIntermediarioData {
-  Pavimento: string;
-  Unidade: string;
-  PHFT_Min: number | null;
-  'Delta PHFT': number | null;
-  RedCgTTmin: number | null;
-  RedCgTT: number | null;
-  Status: string;
-}
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
   const [includeCargaTermica, setIncludeCargaTermica] =
@@ -53,7 +31,7 @@ const FileUpload: React.FC = () => {
       !!selectedVNFile &&
         !!selectedModelFile &&
         (!includeCargaTermica || !!additionalFile) &&
-        (!includeModeloReal || !!selectedVNFile2)
+        (!includeModeloReal || !!selectedVNFile2),
     );
   }, [
     selectedVNFile,
@@ -129,381 +107,63 @@ const FileUpload: React.FC = () => {
     }
   };
 
-  type NivelMinimoData = {
-    Pavimento: string;
-    'Unidades Habitacionais': string;
-    'Temp Max REF UH': number | null;
-    'Temp Max REAL UH': number | null;
-    'PHFT REF UH': number | null;
-    'PHFT REAL UH': number | null;
-    Status: string;
-  };
-  
-  const createNivelMinimoData = (
-    summaryData: any[],
-    summaryModelRealData: any[],
-  ): NivelMinimoData[] => {
-    const nivelMinimoMap: { [key: string]: NivelMinimoData } = {};
-
-    console.log('All rows in summaryData:', summaryData);
-
-    // Preencher o mapa com dados das unidades habitacionais do modelo ref
-    summaryData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
-
-      if (!nivelMinimoMap[key]) {
-        nivelMinimoMap[key] = {
-          Pavimento: pavimento,
-          'Unidades Habitacionais': unidade,
-          'Temp Max REF UH': row['MaxTemp'],
-          'Temp Max REAL UH': null, // Para ser preenchido depois
-          'PHFT REF UH': row['PHFT_Avg'],
-          'PHFT REAL UH': null, // Para ser preenchido depois
-          Status: '',
-        };
-      } else {
-        // Se a unidade já existe, atualize os valores
-        nivelMinimoMap[key]['Temp Max REF UH'] = Math.max(
-          nivelMinimoMap[key]['Temp Max REF UH'] as number,
-          row['MaxTemp'],
-        );
-        nivelMinimoMap[key]['PHFT REF UH'] =
-          ((nivelMinimoMap[key]['PHFT REF UH'] as number) + row['PHFT_Avg']) /
-          2; // Calcular a média
-      }
-    });
-
-    // Preencher os dados do modelo real
-    summaryModelRealData.forEach((row) => {
-      const pavimento = row.Pavimento;
-      const unidade = row.Unidade;
-      const key = `${pavimento}-${unidade}`; // Chave única por pavimento e unidade
-
-      if (nivelMinimoMap[key]) {
-        // Preencher os valores reais
-        nivelMinimoMap[key]['Temp Max REAL UH'] = row['MaxTemp'];
-        nivelMinimoMap[key]['PHFT REAL UH'] = row['PHFT_Avg'];
-      }
-    });
-
-    // Verificar status após todos os valores serem preenchidos
-    Object.values(nivelMinimoMap).forEach((item) => {
-      const { 'Temp Max REF UH': tempNormal, 'PHFT REF UH': phftNormal } = item;
-      const { 'Temp Max REAL UH': tempReal, 'PHFT REAL UH': phftReal } = item;
-
-      const isTempRealValid = tempReal !== null;
-      const isPhftRealValid = phftReal !== null;
-      const isTempNormalValid = tempNormal !== null;
-      const isPhftNormalValid = phftNormal !== null;
-
-      const pavimento = item['Pavimento'];
-
-      // Verifica se o pavimento é "Cobertura" ou "cobertura"
-      if (pavimento === 'Cobertura' || pavimento === 'cobertura') {
-        item['Status'] =
-          (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 2) ||
-          (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-            ? 'NÃO ATENDIDO'
-            : 'ATENDIDO';
-      } else {
-        // Para outros tipos de pavimento
-        item['Status'] =
-          (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 1) ||
-          (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-            ? 'NÃO ATENDIDO'
-            : 'ATENDIDO';
-      }
-    });
-
-    return Object.values(nivelMinimoMap);
-  };
-
-
-  const createNivelIntermediarioData = (
-    summaryData: any[],
-    summaryModelRealData: any[],
-  ): NivelIntermediarioData[] => {
-    const nivelIntermediarioMap: { [key: string]: NivelIntermediarioData } = {};
-
-    // Preencher o mapa com dados do modelo de referência
-    summaryData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-
-      if (!nivelIntermediarioMap[key]) {
-        nivelIntermediarioMap[key] = {
-          Pavimento: row.Pavimento,
-          Unidade: row.Unidade,
-          PHFT_Min: row['PHFT_Min'] || null,
-          'Delta PHFT': null,
-          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
-          RedCgTT: row['CargaTermica_Sum'] || null,
-          Status: '',
-        };
-      }
-    });
-
-    // Preencher dados do modelo real e calcular deltas
-    summaryModelRealData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-      const refData = nivelIntermediarioMap[key];
-
-      if (refData) {
-        // Calcular os deltas
-        refData['Delta PHFT'] =
-          (row['PHFT_Avg'] || 0) - (refData.PHFT_Min || 0);
-
-        // Calcular e arredondar RedCgTT para cima com duas casas decimais
-        const redCgTTValue =
-          (1 - (row['CargaTermica_Sum'] || 0) / (refData['RedCgTT'] || 1)) *
-          100;
-        refData['RedCgTT'] = Math.ceil(redCgTTValue * 100) / 100;
-      }
-    });
-
-    // Avaliar o status de cada unidade
-    Object.values(nivelIntermediarioMap).forEach((item) => {
-      const phftConditionMet = (item['Delta PHFT'] || 0) > (item.PHFT_Min || 0);
-      const redCgTTConditionMet =
-        (item['RedCgTT'] || 0) > (item.RedCgTTmin || 0);
-
-      item.Status =
-        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
-    });
-
-    // Retornar os dados no formato final
-    return Object.values(nivelIntermediarioMap);
-  };
-
-
-  const createNivelSuperiorData = (
-    summaryData: any[],
-    summaryModelRealData: any[],
-  ): NivelSuperiorDataOutput[] => {
-    const nivelSuperiorMap: { [key: string]: NivelSuperiorDataOutput } = {};
-
-    summaryData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-      if (!nivelSuperiorMap[key]) {
-        nivelSuperiorMap[key] = {
-          Pavimento: row.Pavimento,
-          Unidade: row.Unidade,
-          PHFT_Min: row['PHFT_Min_Sup']
-            ? Math.ceil(row['PHFT_Min_Sup'] * 100) / 100
-            : null,
-          'Delta PHFT': null,
-          RedCgTTmin: row['RedCgTTmin'] !== undefined ? row['RedCgTTmin'] : 0,
-          RedCgTT: row['CargaTermica_Sum'] || null,
-          Status: '',
-        };
-      }
-    });
-
-    summaryModelRealData.forEach((row) => {
-      const key = `${row.Pavimento}-${row.Unidade}`;
-      if (nivelSuperiorMap[key]) {
-        const deltaPhft =
-          (row['PHFT_Avg'] || 0) - (nivelSuperiorMap[key]['PHFT_Min'] || 0);
-
-        const deltaRedCgTT =
-          (1 -
-            (row['CargaTermica_Sum'] || 0) /
-              (nivelSuperiorMap[key]['RedCgTT'] || 0)) *
-          100;
-
-        // Arredondar para cima para duas casas decimais
-        nivelSuperiorMap[key]['Delta PHFT'] = Math.ceil(deltaPhft * 100) / 100;
-        nivelSuperiorMap[key]['RedCgTT'] = Math.ceil(deltaRedCgTT * 100) / 100;
-      }
-    });
-
-    Object.values(nivelSuperiorMap).forEach((item) => {
-      const phftConditionMet =
-        item['Delta PHFT'] !== null &&
-        item['Delta PHFT'] > (item.PHFT_Min || 0);
-
-      const redCgTTConditionMet =
-        item['RedCgTT'] !== null && item['RedCgTT'] > (item.RedCgTTmin || 0);
-
-      item.Status =
-        phftConditionMet && redCgTTConditionMet ? 'ATENDIDO' : 'NÃO ATENDIDO';
-    });
-
-    return Object.values(nivelSuperiorMap);
-  };
-
-  
-  interface ModelRow {
-    Pavimento: string;
-    Unidade: string;
-    Nome: string;
-    [key: string]: any; // Permite propriedades adicionais com string como chave
-  }
-
-  // Estados para progresso
-  const [progress, setProgress] = useState<string>(''); // Adicionado estado para progresso
-
-
   // Função principal para gerar o arquivo de saída
   const generateOutputFile = async () => {
-    let areaColumnExists = false;
+    if (!selectedVNFile || !selectedModelFile) {
+      notifyError('Arquivos necessários não foram selecionados.');
+      return;
+    }
 
+    setIsLoading(true);
 
-    type CleanOutputRow = {
-      Pavimento: string;
-      Unidade: string;
-      Código: string;
-      Nome: string;
-      ['Tipo de ambiente']: string;
-      Area?: number;
-      ['MIN TEMP']: number;
-      ['MAX TEMP']: number;
-      ['NHFT']?: number;
-      ['PHFT']?: number;
-      ['CARGA RESF']?: number;
-      ['CARGA AQUE']?: number;
-      ['CARGA TERM']?: number;
+    // Create a new Web Worker
+    const worker = new Worker(
+      new URL('../workers/fileProcessingWorker.ts', import.meta.url),
+    );
+
+    // Prepare input data for worker
+    const workerInput = {
+      selectedVNFile,
+      selectedModelFile,
+      selectedInterval,
+      includeCargaTermica,
+      includeModeloReal,
+      additionalFile,
+      selectedVNFile2,
+      additionalFile2,
     };
 
-    // Função para processar os dados em chunks
-    const processChunks = async (
-      modelData: any[],
-      vnData: any[],
-      selectedInterval: number,
-      includeCargaTermica: boolean,
-      additionalFile: File | null,
-      areaColumnExists: boolean,
-      chunkSize: number = 1000
-    ) => {
-      const totalRows = modelData.length;
-      let processedRows = 0;
-      
-      // Função para processar um chunk
-      const processChunk = async (chunk: any[]) => {
-        const chunkResults = await Promise.all(chunk.map((row) => 
-          processModelRow(
-            row,
-            vnData,
-            selectedInterval,
-            includeCargaTermica,
-            additionalFile,
-            areaColumnExists
-          )
-        ));
-        
-        // Filtrar valores nulos
-        return chunkResults.filter((item): item is NonNullable<typeof item> => Boolean(item));
-      };
+    // Send data to worker
+    worker.postMessage(workerInput);
 
-      const chunks = [];
-      for (let i = 0; i < totalRows; i += chunkSize) {
-        chunks.push(modelData.slice(i, i + chunkSize));
-      }
+    // Handle worker responses
+    worker.onmessage = (event) => {
+      if (event.data.type === 'complete') {
+        const workbookArrayBuffer = event.data.workbook;
 
-      // Processar cada chunk
-      const allProcessedRows: CleanOutputRow[] = [];
-      for (const chunk of chunks) {
-        const chunkData = await processChunk(chunk);
-        allProcessedRows.push(...chunkData);
-
-        processedRows += chunkData.length;
-        setProgress(`Processando ${processedRows} de ${totalRows}...`); // Atualizar progresso
-      }
-
-      return allProcessedRows;
-    };
-
-    const handleProcess = async () => {
-      if (!selectedVNFile || !selectedModelFile || (includeModeloReal && !selectedVNFile2)) {
-        console.error('Arquivos necessários não foram selecionados.');
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const [vnData, modelData, vnData2] = await Promise.all([
-          parseFile(selectedVNFile),
-          parseModelExcel(selectedModelFile),
-          includeModeloReal && selectedVNFile2 ? parseFile(selectedVNFile2) : Promise.resolve(null),
-        ]);
-        // Processar em chunks
-        const cleanOutputData = await processChunks(
-          modelData,
-          vnData,
-          selectedInterval,
-          includeCargaTermica,
-          additionalFile,
-          areaColumnExists
+        setOutputFile(
+          new Blob([workbookArrayBuffer], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          }),
         );
-    
-        const summaryData = createSummaryData(cleanOutputData);
-    
-        const sheets: { [sheetName: string]: any[] } = {
-          Output: cleanOutputData,
-          Summary: summaryData.map(({ Pavimento, Unidade, MinTemp, MaxTemp, PHFT_Avg, CargaTermica_Sum }) => ({
-            Pavimento,
-            Unidade,
-            MinTemp,
-            MaxTemp,
-            PHFT_Avg,
-            CargaTermica_Sum,
-          })),
-        };
-    
-        // Processar modelo real, se necessário
-        if (includeModeloReal && vnData2) {
-          const outputModelRealData = await processChunks(
-            modelData,
-            vnData2,
-            selectedInterval,
-            includeCargaTermica,
-            additionalFile,
-            areaColumnExists
-          );
-          
-          const cleanOutputModelRealData: CleanOutputRow[] = outputModelRealData
-            .filter((item): item is NonNullable<typeof item> => Boolean(item))
-            .map((item) => ({
-              Pavimento: item.Pavimento,
-              Unidade: item.Unidade,
-              Código: item.Código,
-              Nome: item.Nome,
-              "Tipo de ambiente": item['Tipo de ambiente'],
-              Area: typeof item.Area === 'number' ? item.Area : undefined,
-              "MIN TEMP": item['MIN TEMP'],
-              "MAX TEMP": item['MAX TEMP'],
-              NHFT: item.NHFT,
-              PHFT: item.PHFT,
-              "CARGA RESF": item['CARGA RESF'],
-              "CARGA AQUE": item['CARGA AQUE'],
-              "CARGA TERM": item['CARGA TERM'],
-              
-            }));
-    
-          const summaryModelRealData = createSummaryData(cleanOutputModelRealData);
-    
-          sheets['Modelo Real Output'] = cleanOutputModelRealData;
-          sheets['Modelo Real Summary'] = summaryModelRealData;
-          sheets['Análise de Nível Mínimo'] = createNivelMinimoData(summaryData, summaryModelRealData);
-    
-          if (includeCargaTermica) {
-            sheets['Análise de Nível Intermediario'] = createNivelIntermediarioData(summaryData, summaryModelRealData);
-            sheets['Análise de Nível Superior'] = createNivelSuperiorData(summaryData, summaryModelRealData);
-          }
-        }
-    
-        const workbookArrayBuffer = await generateWorkbook(sheets);
-        setOutputFile(new Blob([workbookArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+
         console.log('Arquivo Excel gerado com sucesso!');
-      } catch (error) {
-        console.error('Erro ao processar os arquivos:', error);
-      } finally {
-        setIsLoading(false);
+      } else if (event.data.type === 'error') {
+        console.error('Erro ao processar os arquivos:', event.data.error);
+        notifyError('Falha no processamento dos arquivos');
       }
+
+      // Always stop loading and terminate worker
+      setIsLoading(false);
+      worker.terminate();
     };
 
-    // Chamar a função de processamento
-    handleProcess();
+    worker.onerror = (error) => {
+      console.error('Worker error:', error);
+      notifyError('Erro interno no processamento');
+      setIsLoading(false);
+      worker.terminate();
+    };
   };
 
   return (
@@ -627,7 +287,6 @@ const FileUpload: React.FC = () => {
           Incluir Carga Térmica
         </label>
       </div>
-      <h2>{progress}</h2>
       <FileActions
         onGenerate={generateOutputFile}
         canGenerate={canGenerate}

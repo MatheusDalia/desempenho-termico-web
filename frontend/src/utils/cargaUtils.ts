@@ -45,6 +45,7 @@ export function cargaTerm({
   }
 
   if (columnTitles.includes(codigo)) {
+    console.log('Ta Inclusi');
     const totalSum = filteredRows.reduce(
       (sum: number, row: { [x: string]: any }) => {
         const value = parseFloat(row[`${codigo}`]);
@@ -69,6 +70,7 @@ export function cargaTerm({
 
     return totalSum / 3600000;
   } else {
+    console.log('Nao ta inclusi');
     return 0;
   }
 }

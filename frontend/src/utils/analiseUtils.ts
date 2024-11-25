@@ -22,7 +22,7 @@ export const calculateDeltas = (
   refValue: number | null,
 ): number | null => {
   if (realValue === null || refValue === null) return null;
-  return Math.ceil(realValue - refValue) ;
+  return Math.ceil(realValue - refValue);
 };
 
 export const evaluateStatus = (

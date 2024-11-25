@@ -16,7 +16,6 @@ const FileActions: React.FC<FileActionsProps> = ({
   isLoading,
   notifyError,
 }) => {
-
   const handleGenerateClick = () => {
     if (!canGenerate) {
       notifyError(
