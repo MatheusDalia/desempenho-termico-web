@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
 import './FileUpload.css';
-
 import { processExcelFile, processCsvFile } from '../utils/fileProcessing';
 import FileDropZone from './FileDropzone';
 import FileActions from './FileActions';

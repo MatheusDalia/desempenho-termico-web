@@ -47,7 +47,6 @@ const processFiles = async (input: ProcessingInput) => {
     includeModeloReal,
   } = input;
 
-  const filteredDataCache: { [key: string]: any[] } = {};
   let areaColumnExists = false;
 
   const processCargaTermica = async (
