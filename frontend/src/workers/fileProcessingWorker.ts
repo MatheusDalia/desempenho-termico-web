@@ -1,17 +1,17 @@
 import { parseFile, parseModelExcel } from '../utils/fileParser';
-import { 
-  filterData, 
-  getMaxTemperature, 
-  getMinTemperature, 
-  getNhftValue, 
-  roundUpToTwoDecimals 
+import {
+  filterData,
+  getMaxTemperature,
+  getMinTemperature,
+  getNhftValue,
+  roundUpToTwoDecimals,
 } from '../utils/dataUtils';
 import { cargaTerm, calculateCargaResfr } from '../utils/cargaUtils';
-import { 
-  createSummaryData, 
-  createNivelMinimoData, 
-  createNivelIntermediarioData, 
-  createNivelSuperiorData 
+import {
+  createSummaryData,
+  createNivelMinimoData,
+  createNivelIntermediarioData,
+  createNivelSuperiorData,
 } from '../utils/summaryDataCreator';
 import { generateWorkbook } from '../utils/workbookGenarator';
 
@@ -33,7 +33,7 @@ interface ProcessingInput {
   includeModeloReal?: boolean;
 }
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 20;
 
 const processFiles = async (input: ProcessingInput) => {
   const {
@@ -44,7 +44,7 @@ const processFiles = async (input: ProcessingInput) => {
     includeCargaTermica,
     additionalFile,
     additionalFile2,
-    includeModeloReal
+    includeModeloReal,
   } = input;
 
   const filteredDataCache: { [key: string]: any[] } = {};
@@ -168,7 +168,7 @@ const processFiles = async (input: ProcessingInput) => {
 
   try {
     const vnData = await parseFile(selectedVNFile);
-    
+
     const modelData = await parseModelExcel(selectedModelFile);
 
     const cleanOutputData: any[] = [];
@@ -189,7 +189,7 @@ const processFiles = async (input: ProcessingInput) => {
       cleanOutputData.push(...batchOutput.filter((row) => row !== null));
 
       // Limpeza de memória
-      batch.length = 0;  // Libera memória usada pelo lote
+      batch.length = 0; // Libera memória usada pelo lote
     }
 
     const summaryData = createSummaryData(cleanOutputData);
@@ -200,7 +200,6 @@ const processFiles = async (input: ProcessingInput) => {
     };
 
     if (includeModeloReal && selectedVNFile2) {
-
       const vnData2 = await parseFile(selectedVNFile2);
 
       const outputModelRealData = [];
@@ -222,7 +221,7 @@ const processFiles = async (input: ProcessingInput) => {
       }
 
       const summaryModelRealData = createSummaryData(outputModelRealData);
-      console.log('FOiSumaruioReal'+ summaryModelRealData);
+      console.log('FOiSumaruioReal' + summaryModelRealData);
       sheets['Modelo Real Output'] = outputModelRealData;
       sheets['Modelo Real Summary'] = summaryModelRealData;
 

@@ -45,7 +45,7 @@ export function cargaTerm({
   }
 
   if (columnTitles.includes(codigo)) {
-    console.log("Ta Inclusi");
+    console.log('Ta Inclusi');
     const totalSum = filteredRows.reduce(
       (sum: number, row: { [x: string]: any }) => {
         const value = parseFloat(row[`${codigo}`]);

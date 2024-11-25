@@ -135,12 +135,14 @@ const FileUpload: React.FC = () => {
       notifyError('Arquivos necessários não foram selecionados.');
       return;
     }
-  
+
     setIsLoading(true);
-  
+
     // Create a new Web Worker
-    const worker = new Worker(new URL('../workers/fileProcessingWorker.ts', import.meta.url));
-  
+    const worker = new Worker(
+      new URL('../workers/fileProcessingWorker.ts', import.meta.url),
+    );
+
     // Prepare input data for worker
     const workerInput = {
       selectedVNFile,
@@ -150,35 +152,34 @@ const FileUpload: React.FC = () => {
       includeModeloReal,
       additionalFile,
       selectedVNFile2,
-      additionalFile2
-      
+      additionalFile2,
     };
-  
+
     // Send data to worker
     worker.postMessage(workerInput);
-  
+
     // Handle worker responses
     worker.onmessage = (event) => {
       if (event.data.type === 'complete') {
         const workbookArrayBuffer = event.data.workbook;
-        
+
         setOutputFile(
           new Blob([workbookArrayBuffer], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          })
+          }),
         );
-        
+
         console.log('Arquivo Excel gerado com sucesso!');
       } else if (event.data.type === 'error') {
         console.error('Erro ao processar os arquivos:', event.data.error);
         notifyError('Falha no processamento dos arquivos');
       }
-  
+
       // Always stop loading and terminate worker
       setIsLoading(false);
       worker.terminate();
     };
-  
+
     worker.onerror = (error) => {
       console.error('Worker error:', error);
       notifyError('Erro interno no processamento');
