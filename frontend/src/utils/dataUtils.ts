@@ -98,3 +98,11 @@ export const getNhftValue = (data: any[], key: string, threshold: number) => {
 
   return count;
 };
+
+export const roundUpToTwoDecimals = (value: number): number => {
+  return Math.ceil(value * 100) / 100;
+};
+
+export const roundToOneDecimal = (value: number): number => {
+  return Math.round(value * 10) / 10;
+};
