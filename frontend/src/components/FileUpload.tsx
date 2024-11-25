@@ -2,34 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setFile, setModelFile } from '../store/fileSlice';
 import './FileUpload.css';
-import {
-  filterData,
-  getMaxTemperature,
-  getMinTemperature,
-  getNhftValue,
-  roundUpToTwoDecimals,
-} from '../utils/dataUtils';
-import { cargaTerm, calculateCargaResfr } from '../utils/cargaUtils';
 import { processExcelFile, processCsvFile } from '../utils/fileProcessing';
 import FileDropZone from './FileDropzone';
 import FileActions from './FileActions';
 import { toast, ToastContainer } from 'react-toastify';
-import {
-  createSummaryData,
-  createNivelMinimoData,
-  createNivelIntermediarioData,
-  createNivelSuperiorData,
-} from '../utils/summaryDataCreator';
-import { parseFile, parseModelExcel } from '../utils/fileParser';
-import { generateWorkbook } from '../utils/workbookGenarator';
 
 import 'react-toastify/dist/ReactToastify.css';
-interface ModelRow {
-  Pavimento: string;
-  Unidade: string;
-  Nome: string;
-  [key: string]: any; // Permite propriedades adicionais com string como chave
-}
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
   const [includeCargaTermica, setIncludeCargaTermica] =
