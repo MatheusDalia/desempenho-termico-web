@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ToastContainer } from 'react-toastify';
 
 interface FileActionsProps {
@@ -26,6 +26,13 @@ const FileActions: React.FC<FileActionsProps> = ({
     }
     onGenerate();
   };
+
+  // Log when the output file is generated
+  useEffect(() => {
+    if (outputFile) {
+      console.log('Output file generated:', outputFile);
+    }
+  }, [outputFile]);
 
   return (
     <div
@@ -78,28 +85,6 @@ const FileActions: React.FC<FileActionsProps> = ({
         >
           Download Generated File
         </a>
-      )}
-      {isLoading && (
-        <div
-          className="spinner"
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginTop: '10px',
-          }}
-        >
-          <div
-            style={{
-              border: '4px solid #f3f3f3',
-              borderTop: '4px solid #3498db',
-              borderRadius: '50%',
-              width: '30px',
-              height: '30px',
-              animation: 'spin 1s linear infinite',
-            }}
-          ></div>
-        </div>
       )}
     </div>
   );
