@@ -6,7 +6,6 @@ import { processExcelFile, processCsvFile } from '../utils/fileProcessing';
 import FileDropZone from './FileDropzone';
 import FileActions from './FileActions';
 import { toast, ToastContainer } from 'react-toastify';
-
 import 'react-toastify/dist/ReactToastify.css';
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
@@ -287,7 +286,6 @@ const FileUpload: React.FC = () => {
           Incluir Carga Térmica
         </label>
       </div>
-
       <FileActions
         onGenerate={generateOutputFile}
         canGenerate={canGenerate}
