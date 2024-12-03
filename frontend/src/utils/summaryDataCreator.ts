@@ -128,7 +128,7 @@ export const createNivelMinimoData = (
         'Unidades Habitacionais': unidade,
         'Temp Max REF UH': row['MaxTemp'],
         'Temp Max REAL UH': null, // Para ser preenchido depois
-        'PHFT REF UH': row['PHFT_Avg'],
+        'PHFT REF UH': roundUpToTwoDecimals(row['PHFT_Avg'] * 0.9), // Multiplicar diretamente por 0.9
         'PHFT REAL UH': null, // Para ser preenchido depois
         Status: '',
       };
@@ -139,8 +139,23 @@ export const createNivelMinimoData = (
         row['MaxTemp'],
       );
       nivelMinimoMap[key]['PHFT REF UH'] =
-        ((nivelMinimoMap[key]['PHFT REF UH'] as number) + row['PHFT_Avg']) / 2; // Calcular a média
+        ((nivelMinimoMap[key]['PHFT REF UH'] as number) +
+          row['PHFT_Avg'] * 0.9) /
+        2; // Calcular a média com ajuste de 0.9
     }
+  });
+
+  // Ajustar o valor de Temp Max REF UH diretamente na tabela com base na condição
+  Object.values(nivelMinimoMap).forEach((item) => {
+    const pavimento = item['Pavimento'];
+
+    // Definir o valor de incremento com base no pavimento
+    const tempThreshold =
+      pavimento === 'Cobertura' || pavimento === 'cobertura' ? 2 : 1;
+
+    // Alterar diretamente o valor de Temp Max REF UH
+    item['Temp Max REF UH'] =
+      (item['Temp Max REF UH'] as number) + tempThreshold;
   });
 
   // Preencher os dados do modelo real
@@ -158,31 +173,24 @@ export const createNivelMinimoData = (
 
   // Verificar status após todos os valores serem preenchidos
   Object.values(nivelMinimoMap).forEach((item) => {
-    const { 'Temp Max REF UH': tempNormal, 'PHFT REF UH': phftNormal } = item;
-    const { 'Temp Max REAL UH': tempReal, 'PHFT REAL UH': phftReal } = item;
-
+    const tempNormal = item['Temp Max REF UH'] as number;
+    const phftNormal = item['PHFT REF UH'] as number;
+    const tempReal = item['Temp Max REAL UH'] as number;
+    const phftReal = item['PHFT REAL UH'] as number;
     const isTempRealValid = tempReal !== null;
     const isPhftRealValid = phftReal !== null;
     const isTempNormalValid = tempNormal !== null;
     const isPhftNormalValid = phftNormal !== null;
 
-    const pavimento = item['Pavimento'];
-
-    // Verifica se o pavimento é "Cobertura" ou "cobertura"
-    if (pavimento === 'Cobertura' || pavimento === 'cobertura') {
-      item['Status'] =
-        (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 2) ||
-        (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-          ? 'NÃO ATENDIDO'
-          : 'ATENDIDO';
-    } else {
-      // Para outros tipos de pavimento
-      item['Status'] =
-        (isTempRealValid && isTempNormalValid && tempReal < tempNormal + 1) ||
-        (isPhftRealValid && isPhftNormalValid && phftReal > 0.9 * phftNormal)
-          ? 'NÃO ATENDIDO'
-          : 'ATENDIDO';
-    }
+    item['Status'] =
+      isTempRealValid &&
+      isTempNormalValid &&
+      tempReal < tempNormal &&
+      isPhftRealValid &&
+      isPhftNormalValid &&
+      phftReal > phftNormal
+        ? 'ATENDIDO'
+        : 'NÃO ATENDIDO';
   });
 
   return Object.values(nivelMinimoMap);

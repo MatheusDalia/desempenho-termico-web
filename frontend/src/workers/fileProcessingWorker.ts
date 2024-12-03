@@ -194,8 +194,8 @@ const processFiles = async (input: ProcessingInput) => {
     const summaryData = createSummaryData(cleanOutputData);
 
     const sheets: { [sheetName: string]: any[] } = {
-      Output: cleanOutputData,
-      Summary: summaryData,
+      Ref: cleanOutputData,
+      Ref_Sumario: summaryData,
     };
 
     if (includeModeloReal && selectedVNFile2) {
@@ -221,8 +221,8 @@ const processFiles = async (input: ProcessingInput) => {
 
       const summaryModelRealData = createSummaryData(outputModelRealData);
       console.log('FOiSumaruioReal' + summaryModelRealData);
-      sheets['Modelo Real Output'] = outputModelRealData;
-      sheets['Modelo Real Summary'] = summaryModelRealData;
+      sheets['Real'] = outputModelRealData;
+      sheets['Real Sumario'] = summaryModelRealData;
 
       const nivelMinimoData = createNivelMinimoData(
         summaryData,
