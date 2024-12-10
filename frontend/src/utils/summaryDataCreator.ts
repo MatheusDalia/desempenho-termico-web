@@ -43,25 +43,21 @@ export const createSummaryData = (cleanOutputData: any[]) => {
     let RedCgTTmin_Sup = 0;
 
     // Cálculos para PHFT_Min e RedCgTTmin como já definido
-    if (PHFT_Avg < 70) {
-      const pavimentos = new Set(
-        cleanOutputData.map((row) => row.Pavimento.toLowerCase()),
-      );
 
-      if (pavimentos.size === 1) {
+    if (PHFT_Avg < 70) {
+      const pavimentoLower = entry.Pavimento.toLowerCase();
+
+      if (pavimentoLower === 'unifamiliar') {
         PHFT_Min = 45 - 0.58 * PHFT_Avg;
+      } else if (pavimentoLower.includes('cobertura')) {
+        PHFT_Min = 18 - 0.18 * PHFT_Avg;
+      } else if (
+        pavimentoLower.includes('térreo') ||
+        pavimentoLower.includes('terreo')
+      ) {
+        PHFT_Min = 22 - 0.21 * PHFT_Avg;
       } else {
-        const pavimentoLower = entry.Pavimento.toLowerCase();
-        if (pavimentoLower.includes('cobertura')) {
-          PHFT_Min = 18 - 0.18 * PHFT_Avg;
-        } else if (
-          pavimentoLower.includes('térreo') ||
-          pavimentoLower.includes('terreo')
-        ) {
-          PHFT_Min = 22 - 0.21 * PHFT_Avg;
-        } else {
-          PHFT_Min = 28 - 0.27 * PHFT_Avg;
-        }
+        PHFT_Min = 28 - 0.27 * PHFT_Avg;
       }
       PHFT_Min_Sup = PHFT_Min; // Mesmo cálculo para nível superior
     } else {
@@ -73,6 +69,7 @@ export const createSummaryData = (cleanOutputData: any[]) => {
         RedCgTTmin = entry.Count === 1 ? 27 : 20;
       }
     }
+
     // Cálculo de RedCgTTmin_Sup, independentemente de PHFT_Avg
     const cargaTermicaPorArea = entry.CargaTermica_Sum / entry.Area;
 

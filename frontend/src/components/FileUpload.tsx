@@ -7,6 +7,8 @@ import FileDropZone from './FileDropzone';
 import FileActions from './FileActions';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import instructions from '../assets/instructions.md';
+import { marked } from 'marked';
 const FileUpload: React.FC = () => {
   const dispatch = useDispatch();
   const [includeCargaTermica, setIncludeCargaTermica] =
@@ -23,6 +25,77 @@ const FileUpload: React.FC = () => {
   const [selectedInterval, setSelectedInterval] = useState<number>(26);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false
   const [canGenerate, setCanGenerate] = useState(false);
+
+  const [markdownContent, setMarkdownContent] = useState('');
+
+  // Load the Markdown file content on mount
+  useEffect(() => {
+    const loadMarkdown = async () => {
+      try {
+        const response = await fetch(instructions);
+        const text = await response.text();
+        console.log('Markdown carregado:', text); // Verifique no console
+        setMarkdownContent(text);
+      } catch (error) {
+        console.error('Erro ao carregar o Markdown:', error);
+      }
+    };
+
+    loadMarkdown();
+  }, []);
+  // Função para gerar o PDF
+  // Função para gerar e baixar o arquivo HTML
+  const generateHTMLDownload = () => {
+    // Converter o conteúdo Markdown para HTML
+    const htmlContent = marked(markdownContent);
+
+    // Criar o conteúdo HTML completo, incluindo a estrutura básica de um arquivo HTML
+    const fullHTML = `
+      <!DOCTYPE html>
+      <html lang="pt-br">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Instruções</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+          }
+          h1, h2, h3 {
+            color: #333;
+          }
+          p {
+            font-size: 1rem;
+            color: #555;
+          }
+          code {
+            background-color: #f4f4f4;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Instruções de Uso</h1>
+        ${htmlContent} <!-- Conteúdo do Markdown convertido para HTML -->
+      </body>
+      </html>
+    `;
+
+    // Criar um Blob com o conteúdo HTML
+    const blob = new Blob([fullHTML], { type: 'text/html' });
+
+    // Criar uma URL para o Blob
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'instrucoes.html'; // Nome do arquivo HTML
+
+    // Simular o clique para iniciar o download
+    link.click();
+  };
 
   // Atualiza a condição para habilitar a geração de arquivos
   useEffect(() => {
@@ -176,6 +249,18 @@ const FileUpload: React.FC = () => {
       }}
     >
       <h1 style={{ marginBottom: '20px' }}>Análise Térmica</h1>
+      <a
+        onClick={generateHTMLDownload}
+        style={{
+          fontSize: '0.9rem',
+          color: '#007bff',
+          textDecoration: 'none',
+          marginTop: '-10px',
+          cursor: 'pointer',
+        }}
+      >
+        Baixar instruções de uso
+      </a>
 
       <div style={{ marginTop: '20px' }}>
         <ToastContainer
