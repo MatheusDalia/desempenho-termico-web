@@ -25,6 +25,8 @@ const FileUpload: React.FC = () => {
   const [selectedInterval, setSelectedInterval] = useState<number>(26);
   const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize as false
   const [canGenerate, setCanGenerate] = useState(false);
+  // Estado para o progresso
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   const [markdownContent, setMarkdownContent] = useState('');
 
@@ -34,7 +36,6 @@ const FileUpload: React.FC = () => {
       try {
         const response = await fetch(instructions);
         const text = await response.text();
-        console.log('Markdown carregado:', text); // Verifique no console
         setMarkdownContent(text);
       } catch (error) {
         console.error('Erro ao carregar o Markdown:', error);
@@ -208,30 +209,42 @@ const FileUpload: React.FC = () => {
     // Send data to worker
     worker.postMessage(workerInput);
 
-    // Handle worker responses
+    // Lida com as mensagens do worker
     worker.onmessage = (event) => {
-      if (event.data.type === 'complete') {
-        const workbookArrayBuffer = event.data.workbook;
+      switch (event.data.type) {
+        case 'progress': {
+          // Usar requestAnimationFrame para atualizações suaves
+          requestAnimationFrame(() => {
+            setProgress({
+              current: event.data.current,
+              total: event.data.total,
+            });
+          });
+          break;
+        }
+        case 'complete': {
+          const workbookArrayBuffer = event.data.workbook;
 
-        setOutputFile(
-          new Blob([workbookArrayBuffer], {
-            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          }),
-        );
+          setOutputFile(
+            new Blob([workbookArrayBuffer], {
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            }),
+          );
 
-        console.log('Arquivo Excel gerado com sucesso!');
-      } else if (event.data.type === 'error') {
-        console.error('Erro ao processar os arquivos:', event.data.error);
-        notifyError('Falha no processamento dos arquivos');
+          setProgress({ current: event.data.total, total: event.data.total });
+          setIsLoading(false);
+          worker.terminate();
+          break;
+        }
+        case 'error':
+          notifyError('Falha no processamento dos arquivos');
+          setIsLoading(false);
+          worker.terminate();
+          break;
       }
-
-      // Always stop loading and terminate worker
-      setIsLoading(false);
-      worker.terminate();
     };
 
-    worker.onerror = (error) => {
-      console.error('Worker error:', error);
+    worker.onerror = () => {
       notifyError('Erro interno no processamento');
       setIsLoading(false);
       worker.terminate();
@@ -371,6 +384,13 @@ const FileUpload: React.FC = () => {
           Incluir Carga Térmica
         </label>
       </div>
+      {isLoading && (
+        <div>
+          <p>
+            Processando {progress.current} de {progress.total}
+          </p>
+        </div>
+      )}
       <FileActions
         onGenerate={generateOutputFile}
         canGenerate={canGenerate}

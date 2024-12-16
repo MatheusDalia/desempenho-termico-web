@@ -171,21 +171,36 @@ const processFiles = async (input: ProcessingInput) => {
     const modelData = await parseModelExcel(selectedModelFile);
 
     const cleanOutputData: any[] = [];
+    const totalRows = modelData.length;
     for (let i = 0; i < modelData.length; i += BATCH_SIZE) {
       const batch = modelData.slice(i, i + BATCH_SIZE);
-      const batchOutput = await Promise.all(
-        batch.map((modelRow) =>
-          processModelRow(
-            modelRow,
-            vnData,
-            selectedInterval,
-            includeCargaTermica,
-            additionalFile as File,
-            areaColumnExists,
-          ),
-        ),
-      );
-      cleanOutputData.push(...batchOutput.filter((row) => row !== null));
+
+      const batchProcessedRows = [];
+
+      for (const modelRow of batch) {
+        const processedRow = await processModelRow(
+          modelRow,
+          vnData,
+          selectedInterval,
+          includeCargaTermica,
+          additionalFile as File,
+          areaColumnExists,
+        );
+
+        if (processedRow !== null) {
+          batchProcessedRows.push(processedRow);
+        }
+        // Envie o progresso com menos frequência para evitar sobrecarga
+        if (i % 10 === 0) {
+          postMessage({
+            type: 'progress',
+            current: i + batchProcessedRows.length,
+            total: totalRows,
+          });
+        }
+      }
+
+      cleanOutputData.push(...batchProcessedRows);
 
       // Limpeza de memória
       batch.length = 0; // Libera memória usada pelo lote
@@ -220,7 +235,7 @@ const processFiles = async (input: ProcessingInput) => {
       }
 
       const summaryModelRealData = createSummaryData(outputModelRealData);
-      console.log('FOiSumaruioReal' + summaryModelRealData);
+
       sheets['Real'] = outputModelRealData;
       sheets['Real Sumario'] = summaryModelRealData;
 

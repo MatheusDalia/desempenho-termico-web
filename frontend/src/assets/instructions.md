@@ -48,7 +48,7 @@ A planilha deve conter as seguintes colunas:
 
 ### 5. Tipo de Ambiente
 
-- Classifique o ambiente, como "Sala", "Quarto", "Banheiro", etc.
+- Classifique o ambiente, como "Sala", "Quarto", "Suite".
 
 ### 6. Area
 
@@ -62,11 +62,11 @@ A planilha deve conter as seguintes colunas:
 
 ### Nível Intermediário e Superior:
 
-| Pavimento | Unidade | Código | Nome     | Tipo de Ambiente | Area |
-| --------- | ------- | ------ | -------- | ---------------- | ---- |
-| Cobertura | Term 01 | A60B4E | Sala     | Sala             | 100  |
-| Cobertura | Term 01 | FA2868 | Suite    | Quarto           | 100  |
-| Cobertura | Term 01 | 78A222 | Quarto 1 | Quarto           | 100  |
+| Pavimento | Unidade | Código | Nome     | Tipo de Ambiente | Area   |
+| --------- | ------- | ------ | -------- | ---------------- | ------ |
+| Cobertura | Term 01 | A60B4E | Sala     | Sala             | 100,52 |
+| Cobertura | Term 01 | FA2868 | Suite    | Quarto           | 100,52 |
+| Cobertura | Term 01 | 78A222 | Quarto 1 | Quarto           | 100,52 |
 
 ### Nível Mínimo:
 
